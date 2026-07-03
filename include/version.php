@@ -21,6 +21,9 @@ define("DISCLAIMER_STRING", '<b>Developed by:</b>
                             <li>
                               <a href="https://github.com/BrixSat" target="_blank">Brixsat | Cesar Araujo</a>
                             </li>
+                           <li>
+                              <a href="https://github.com/MauroMaia" target="_blank">Mfm | Mauro Maia</a>
+                            </li>
                             <li>
                               <a href="https://github.com/Cyclodex" target="_blank">Cyclodex | Fabian Gander</a>
                             </li>
@@ -60,5 +63,7 @@ define("POWERED_BY_LOGOS", '<b>Powered by:</b><br><br>
                              <img src="img/nagios_powered.png" style="vertical-align:middle;margin-left:30px" alt="nagios_powered"></a>
                              <a href="http://sourceforge.net/projects/nconf" target=_blank>
                              <img src="img/sflogo.gif" style="vertical-align:middle;margin-left:28px" alt="sf-logo"></a>
+                             <a href="http://xarevision.pt" target=_blank>
+                             <img src="img/xare.png" style="vertical-align:middle;margin-left:28px; width:125px" alt="xare-logo"></a>
                             </div>');
 ?>

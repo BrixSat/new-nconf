@@ -42,10 +42,10 @@ class NConf_PERMISSIONS{
 			# remove path from script name variable
 			$script_name_explode = explode($nconf_webroot_path, $script_name);
 			$this->debug .= NConf_HTML::swap_content($script_name_explode, "script_name_explode");
-			
+
 			# only strip the webroot path if it was actually found in the script name
 			if ( isset($script_name_explode[1]) ){
-			$script_name = $script_name_explode[1];
+				$script_name = $script_name_explode[1];
 			}
 		}
 		

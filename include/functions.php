@@ -62,7 +62,7 @@ function message($LEVEL, $text, $mode = "standard"){
 function escape_string($string){
     # magic_quotes_gpc was removed in PHP 8.0 (and effectively off since PHP 5.4),
     # so the get_magic_quotes_gpc()/stripslashes() dance is gone. Nothing to reverse.
-    
+
     # Make a safe string
 	global $dbh;
     $escaped_string = mysqli_real_escape_string($dbh, $string);
@@ -1022,6 +1022,7 @@ function db_handler($query, $output = "result", $debug_title = "query"){
         message ('DEBUG', "db_handler called without a valid database connection");
         return FALSE;
     }
+
     if ( (DB_NO_WRITES == 1) AND ( !preg_match("/^SELECT/i", $query) ) ){
         message ('INFO', "DB_NO_WRITES activated, no deletions or modifications will be performed");
     }else{
