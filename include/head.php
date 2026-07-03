@@ -101,6 +101,8 @@ $NConf_PERMISSIONS = new NConf_PERMISSIONS;
     <!-- Load nconf js functions -->
     <script src="include/js/nconf.js" type="text/javascript"></script>
     <script src="include/js/ajax.js" type="text/javascript"></script>
+    <!-- type-to-filter enhancement for all single <select> dropdowns -->
+    <script src="include/js/nconf_searchable_select.js" type="text/javascript"></script>
 
     
     <?php

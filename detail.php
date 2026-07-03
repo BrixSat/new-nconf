@@ -276,6 +276,85 @@ echo NConf_HTML::page_title($item_class, $item_name);
     }
 
 
+    ###
+    # Exact command that Nagios will run for this service (copy/paste friendly)
+    if ($item_class == "service" OR $item_class == "advanced-service"){
+
+        # small helper: read a single attribute value of an item
+        if ( !function_exists('detail_get_attr_value') ){
+            function detail_get_attr_value($the_item_id, $attr_name){
+                $q = 'SELECT attr_value FROM ConfigValues, ConfigAttrs
+                        WHERE fk_id_attr = id_attr
+                          AND attr_name = "'.escape_string($attr_name).'"
+                          AND fk_id_item = "'.(int)$the_item_id.'"';
+                return db_handler($q, 'getOne', 'detail: get attr '.$attr_name);
+            }
+        }
+
+        # resolve the checkcommand item (directly linked, else inherited from a template)
+        $cc_id = db_templates("get_checkcommand_of_service", $item_id);
+        $cc_inherited = FALSE;
+        if ( empty($cc_id) AND !empty($p2) AND is_array($p2) ){
+            # $p2 holds the inherited "check_command" links resolved above; last one wins
+            foreach ($p2 as $p2_entry){
+                if ( !empty($p2_entry["item_id"]) ){
+                    $cc_id = $p2_entry["item_id"];
+                    $cc_inherited = TRUE;
+                }
+            }
+        }
+
+        if ( empty($cc_id) ){
+            $cmd_output = 'No check command could be resolved for this service.';
+        }else{
+            $cc_name      = db_templates("naming_attr", $cc_id);
+            $command_line = detail_get_attr_value($cc_id, "command_line");
+            $check_params = detail_get_attr_value($item_id, "check_params");   # e.g. !arg1!arg2
+
+            # host macros
+            $host_id      = db_templates("hostID_of_service", $item_id);
+            $host_name    = ($host_id) ? db_templates("naming_attr", $host_id) : '';
+            $host_address = ($host_id) ? detail_get_attr_value($host_id, "address") : '';
+
+            # 1) the Nagios "check_command" directive exactly as written to the config
+            $nagios_directive = $cc_name.$check_params;
+
+            # 2) the fully expanded command line (what Nagios actually executes)
+            $expanded = (string)$command_line;
+            if ($expanded !== ''){
+                # substitute the service's arguments into $ARGn$
+                $args = explode('!', (string)$check_params);   # [0] = empty part before first "!"
+                for ($i = 1; $i < count($args); $i++){
+                    $expanded = str_replace('$ARG'.$i.'$', $args[$i], $expanded);
+                }
+                # any remaining unset $ARGn$ macros resolve to empty (as Nagios does)
+                $expanded = preg_replace('/\$ARG[0-9]+\$/', '', $expanded);
+                # substitute host macros
+                $expanded = str_replace('$HOSTADDRESS$', (string)$host_address, $expanded);
+                $expanded = str_replace('$HOSTNAME$',    (string)$host_name,    $expanded);
+                $expanded = str_replace('$HOSTALIAS$',   (string)$host_name,    $expanded);
+            }
+
+            # build copy/paste friendly output (read-only inputs, select-all on click)
+            $cmd_output  = '<b>Nagios <code>check_command</code> directive:</b><br>';
+            $cmd_output .= '<input type="text" readonly="readonly" onclick="this.select()" '
+                .'style="width:98%;font-family:monospace" value="'.htmlspecialchars($nagios_directive, ENT_QUOTES).'"><br><br>';
+
+            if ($expanded === ''){
+                $cmd_output .= 'The check command <b>'.htmlspecialchars($cc_name, ENT_QUOTES).'</b> has no <code>command_line</code> defined.';
+            }else{
+                $cmd_output .= '<b>Resolved command line'.($cc_inherited ? ' (check command inherited from template)' : '').':</b><br>';
+                $cmd_output .= '<input type="text" readonly="readonly" onclick="this.select()" '
+                    .'style="width:98%;font-family:monospace" value="'.htmlspecialchars($expanded, ENT_QUOTES).'"><br>';
+                $cmd_output .= '<span style="font-size:0.85em;color:#666">'
+                    .'Note: <code>$USER1$</code> and similar macros are defined in Nagios&#39; '
+                    .'<code>resource.cfg</code> and are left unexpanded here.</span>';
+            }
+        }
+
+        echo NConf_HTML::ui_box_header('Command to run');
+        echo NConf_HTML::ui_box_content($cmd_output);
+    }
 
 
 echo '</div>';

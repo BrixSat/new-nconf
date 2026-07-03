@@ -423,6 +423,11 @@ if( ( isset($class) ) AND ($class != "") ){
         # use filters
         if ($filter2 != ""){
             $filter2 = str_replace("*", "%", $filter2);
+            # default to a substring match when no explicit wildcard was typed
+            # (so "ssl" matches "ssl_2.6", not only an exact "ssl")
+            if ( strpos($filter2, "%") === FALSE ){
+                $filter2 = "%".$filter2."%";
+            }
             $filter2 = escape_string($filter2);
             $query .= ' AND attr_value LIKE "'.$filter2.'"';
         }
@@ -524,6 +529,10 @@ if( ( isset($class) ) AND ($class != "") ){
         if($filter2 != ""){
             # replace * with % for sql search
             $filter2 = str_replace("*", "%", $filter2);
+            # default to a substring match when no explicit wildcard was typed
+            if ( strpos($filter2, "%") === FALSE ){
+                $filter2 = "%".$filter2."%";
+            }
             $filter2 = escape_string($filter2);
             if($class == "service"){
                 # search for servername AND servicename on "service"
