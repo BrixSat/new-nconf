@@ -295,7 +295,14 @@ $NConf_PERMISSIONS = new NConf_PERMISSIONS;
 
     ###
     ## Page authorisation check
+    ## (skipped during installation: there is no configured database or
+    ##  user/group data to enforce ACLs against yet)
     ###
+    if ( !empty($_SESSION["install"]) ){
+        # During installation there is no DB / ACL data yet; grant access so the
+        # installer pages render without querying a database that does not exist.
+        NConf_DEBUG::set("Installation mode, skipping ACL check", 'DEBUG', "ACL");
+    }else{
     require_once(NCONFDIR.'/include/access_rules.php');
 
     # Show page or EXIT the script ? (based on above auth-checks)
@@ -329,6 +336,7 @@ $NConf_PERMISSIONS = new NConf_PERMISSIONS;
         # EXIT because of no access
         exit;
 
+    }
     }
 
     # close header-part in DEBUG section

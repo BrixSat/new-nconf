@@ -1,5 +1,6 @@
 <?php
-            while ( $attr = each($items2write) ){
+            foreach ($items2write as $attr_key => $attr_val) {
+                $attr = ['key' => $attr_key, 'value' => $attr_val];
 
                 # only entries with attribute id in the key will be accepted
                 if ( is_int($attr["key"]) ){
@@ -59,8 +60,8 @@
                             }
                         }
                         if ( !empty($diff_array2) ){
-                            while ( $attr_removed = each($diff_array2) ){
-                                history_add("unassigned", $attr_name, $attr_removed["value"], $id, "resolve_assignment");
+                            foreach ($diff_array2 as $ar_val) {
+                                history_add("unassigned", $attr_name, $ar_val, $id, "resolve_assignment");
                                 $edited = TRUE;
                             }
                         }
@@ -138,7 +139,8 @@
                         # mark current item as ok
                         if ( $handle_action == "multimodify" AND empty($add_items) ) $info_summary["ok"][] = $name;
 						
-                        while ( $many_attr = each($add_items) ){
+                        foreach ($add_items as $ma_key => $ma_val) {
+                            $many_attr = ['key' => $ma_key, 'value' => $ma_val];
                             # if value is empty go to next one
                             if (!$many_attr["value"]){
                                 continue;

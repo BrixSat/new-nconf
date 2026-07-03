@@ -33,6 +33,14 @@ require_once(NCONFDIR.'/include/includeAllClasses.php');
 #
 require_once(NCONFDIR.'/config/mysql.php');
 #
+# PHP 8.1+ makes mysqli throw exceptions on error by default. This codebase was
+# written against the classic behaviour of returning FALSE and checking
+# mysqli_error()/mysqli_errno(), so restore that mode application-wide.
+#
+if ( function_exists('mysqli_report') ){
+    mysqli_report(MYSQLI_REPORT_OFF);
+}
+#
 # mysql Initiate connection procedurally
 #
 $dbh = mysqli_connect(DBHOST,DBUSER,DBPASS,DBNAME);

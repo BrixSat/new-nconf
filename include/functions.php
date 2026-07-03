@@ -60,12 +60,8 @@ function message($LEVEL, $text, $mode = "standard"){
 
 
 function escape_string($string){
-    # Strip slashes if magic_quotes_gpc is ON (DEPRECATED as of PHP 5.3.0 and REMOVED as of PHP 6.0.0.)
-    # Reverse magic_quotes_gpc/magic_quotes_sybase effects on those vars if ON.
-    if (get_magic_quotes_gpc() ){
-        message('DEBUG', "magic_quotes_gpc is ON: using stripslashes to correct it");
-        $string = stripslashes($string);
-    }
+    # magic_quotes_gpc was removed in PHP 8.0 (and effectively off since PHP 5.4),
+    # so the get_magic_quotes_gpc()/stripslashes() dance is gone. Nothing to reverse.
     
     # Make a safe string
 	global $dbh;
@@ -337,6 +333,7 @@ function history_add($action, $name, $value, $fk_id_item = 'NULL', $feature = ''
 # reloads the db connection and selects the db
 # (must be user after auth by sql)
 function relaod_nconf_db_connection(){
+    global $dbh;
     $dbh = mysqli_connect(DBHOST,DBUSER,DBPASS,DBNAME);
     //mysql_select_db(DBNAME);
 }
@@ -1019,6 +1016,12 @@ function db_handler($query, $output = "result", $debug_title = "query"){
 	global $dbh;
 	global $dbh_obj;
 
+    # No valid DB connection (e.g. during installation, before the DB is
+    # configured). Bail out gracefully instead of passing null to mysqli_query().
+    if ( !($dbh instanceof mysqli) ){
+        message ('DEBUG', "db_handler called without a valid database connection");
+        return FALSE;
+    }
     if ( (DB_NO_WRITES == 1) AND ( !preg_match("/^SELECT/i", $query) ) ){
         message ('INFO', "DB_NO_WRITES activated, no deletions or modifications will be performed");
     }else{
@@ -1260,7 +1263,8 @@ function add_attribute($id, $id_attr, $attr_value){
             $attr_datatype = db_templates("attr_datatype", $attr["key"]);
 
             # save assign_one/assign_many/assign_cust_order in ItemLinks
-            while ( $many_attr = each($attr["value"]) ){
+            foreach ($attr["value"] as $ma_key => $ma_val) {
+                $many_attr = ['key' => $ma_key, 'value' => $ma_val];
                 # if value is empty go to next one
                 if (!$many_attr["value"]){
                     continue;

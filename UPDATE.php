@@ -326,6 +326,10 @@ function upgrade_files($installed_version, $dir, $file_regex, $action, $special 
     $dirs = getDirectoryTree($dir);
     $success = TRUE;
 
+    # count how many files this call actually acted on, so the caller can tell
+    # the difference between "updates applied" and "nothing to do".
+    global $upgrade_action_count;
+    $upgrade_action_count = 0;
     # update each separate version
     do {
         # reset next version
@@ -382,6 +386,7 @@ function upgrade_files($installed_version, $dir, $file_regex, $action, $special 
                                 include($dir.'/'.$update_folder.'/'.$update_file);
                             }elseif (is_callable($action)){
                                 $update = $action($dir.'/'.$update_folder.'/'.$update_file);
+                                $upgrade_action_count++;
                                 echo table_row_check('Executing '.$update_file, $update );
                                 if (!$update){
                                     $success = FALSE;
@@ -510,18 +515,39 @@ echo '<table width="100%" border=0>';
 
 if ($step == 0){
     # some checks
-    function find_SQL_Version() {
-        $output = shell_exec('mysql -V');
-        if ( !$output ){
+    function find_SQL_Version()
+    {
+        # "mysql" is deprecated / removed on recent MariaDB, so fall back to the
+        # "mariadb" binary. 2>&1 keeps the version line even when the client
+        # prints a deprecation notice on stderr.
+        $output = shell_exec('mysql -V 2>&1');
+        if (!$output)
+        {
+            $output = shell_exec('mariadb -V 2>&1');
+        }
+        if (!$output)
+        {
             # could not execute
             return "UNKNOWN";
         }
-        preg_match('/Distrib ([0-9]+[\.0-9]*)/i', $output, $version);
-        if ( !empty($version[1]) ){
+        # Cope with the various version-string formats used over the years:
+        #   mysql  Ver 14.14 Distrib 5.7.44, ...           (older MySQL)
+        #   mysql  Ver 8.0.36 for Linux ...                (MySQL 8+)
+        #   mysql  Ver 15.1 Distrib 10.11.6-MariaDB, ...   (older MariaDB)
+        #   mysql from 12.3.2-MariaDB, client 15.2 ...     (newer MariaDB client)
+        $patterns = array(
+            '/Distrib ([0-9]+(?:\.[0-9]+)+)/i',
+            '/from ([0-9]+(?:\.[0-9]+)+)/i',
+            '/Ver ([0-9]+(?:\.[0-9]+)+)/i',
+        );
+        foreach ($patterns as $pattern)
+        {
+            if (preg_match($pattern, $output, $version) && !empty($version[1]))
+            {
             return $version[1];
-        }else{
-            return FALSE;
         }
+    }
+        return FALSE;
     }
 
     function find_PERL_Version() {
@@ -563,9 +589,9 @@ if ($step == 0){
     # mysql version check
     $mysql_status = find_SQL_Version();
     if ($mysql_status == "UNKNOWN"){
-        echo table_row_check('MySQL 5.0.2 (or higher)', "UNKNOWN");
+        echo table_row_check('MariaDB/MySQL client (5.0.2 or higher)', "UNKNOWN");
     }else{
-        echo table_row_check('MySQL 5.0.2 (or higher) -> '.$mysql_status, version_compare($mysql_status, '5.0.2', '>=') );
+        echo table_row_check('MariaDB/MySQL client (5.0.2 or higher) -> '.$mysql_status, version_compare($mysql_status, '5.0.2', '>=') );
     }
 
     # php-mysql support
@@ -642,7 +668,11 @@ if ($step == 0){
                     echo table_row_check('check versions in UPDATE directory', FALSE );
                 }else{
                     foreach($dirs as $update_folder){
-                        include('UPDATE/'.$update_folder.'/version_check.php');
+                        # not every update directory ships a version_check.php
+                        $version_check_file = 'UPDATE/'.$update_folder.'/version_check.php';
+                        if ( file_exists($version_check_file) ){
+                            include($version_check_file);
+                        }
                     }
                 }
                 
@@ -664,7 +694,7 @@ if ($step == 0){
                         echo '</table>
                                 <input type=hidden name="old_version" value="'.$installed_version.'">
                               <table width="300">';
-                        echo table_row_description('<br>Update in progress...', '');
+                        echo table_row_description('<br>Applying database updates&hellip;', '');
                     }else{
                         if (!empty($migrate) ){
                             # ignore update, migration script should do some stuff
@@ -709,13 +739,19 @@ if ($step == 0){
                             # if status = stopped, the next button should proceed without migrating data
                             echo table_row_description('', '<input type=hidden name="db_status" value="upgrade_pass_migrate">');
                         }else{
-                            # DB version is up to date, go to next step
-                            if ( VERSION_NUMBER == $installed_version ){
-                                echo table_row_description('', '<input type=hidden name="db_status" value="ok">');
+                            # A single upgrade_files() call walks the entire reachable
+                            # update chain, so once it returns without stopping there is
+                            # nothing left to apply. Proceed to the next step.
+                            # (Re-emitting "upgrade" here loops forever whenever the update
+                            #  scripts do not reach the current VERSION_NUMBER, because
+                            #  $installed_version is the stale pre-upgrade value.)
+                            if ( $upgrade_action_count > 0 ){
+                                $done_message = '<br>Database update complete. Click <b>Next</b> to continue.';
                             }else{
-                                echo table_row_description('', '<input type=hidden name="db_status" value="upgrade">');
+                                $done_message = '<br>No database changes were required for this step. Click <b>Next</b> to continue.';
                             }
                             
+                            echo table_row_description($done_message, '<input type=hidden name="db_status" value="ok">');
                         }
 
                     }  // end of upgrade
@@ -760,11 +796,51 @@ if ($step == 0){
 
 
 }elseif ($step == 3){
-            echo table_row_description("Update complete", 'Please delete the following files and directories to continue:<br>
-                <br>- INSTALL
-                <br>- INSTALL.php
-                <br>- UPDATE
-                <br>- UPDATE.php');
+            # Automatically move the installer / updater files and directories
+            # aside so the main application stops blocking on them. They are
+            # renamed with a random suffix (rather than deleted) so they can be
+            # recovered if ever needed.
+            $base_dir    = __DIR__;
+            $rand_suffix = rand(100000, 999999);
+            $cleanup_targets = array(
+                'INSTALL.php' => 'INSTALL_'.$rand_suffix.'.php',
+                'INSTALL'     => 'INSTALL_'.$rand_suffix,
+                'UPDATE.php'  => 'UPDATE_'.$rand_suffix.'.php',
+                'UPDATE'      => 'UPDATE_'.$rand_suffix,
+            );
+            $moved  = array();
+            $failed = array();
+            foreach ($cleanup_targets as $original => $renamed_to){
+                $from = $base_dir.'/'.$original;
+                $to   = $base_dir.'/'.$renamed_to;
+                if ( file_exists($from) ){
+                    if ( @rename($from, $to) ){
+                        $moved[$original] = $renamed_to;
+                    }else{
+                        $failed[] = $original;
+                    }
+                }
+            }
+
+            if ( empty($failed) ){
+                if ( empty($moved) ){
+                    $cleanup_html = 'No installer or updater files were found &ndash; nothing to clean up.';
+                }else{
+                    $cleanup_html = 'The installer and updater files have been moved aside automatically:<br>';
+                    foreach ($moved as $original => $renamed_to){
+                        $cleanup_html .= '<br>- '.$original.' &rarr; '.$renamed_to;
+                    }
+                }
+            }else{
+                # Web server user could not rename them (usually a permissions
+                # issue) -> fall back to asking the user to remove them manually.
+                $cleanup_html = 'The following files/directories could not be moved automatically'
+                    .' (insufficient permissions). Please delete or rename them manually to continue:';
+                foreach ($failed as $original){
+                    $cleanup_html .= '<br>- '.$original;
+                }
+            }
+            echo table_row_description("Update complete", $cleanup_html);
             session_unset();
 
 

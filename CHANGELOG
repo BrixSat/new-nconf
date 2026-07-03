@@ -1,3 +1,6 @@
+Working Release 2.0.0 (2026-06-03)
+
+ADDED   Compatibility with php8.5 added
 Working Release 1.5.0
 
 FIXED   corrections on table head for xmode actions in overview.php

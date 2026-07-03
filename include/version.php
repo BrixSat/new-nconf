@@ -2,22 +2,25 @@
 #
 # File for Version number and info
 #
-define("VERSION_NUMBER", '1.5.0');
+define("VERSION_NUMBER", '2.0.0');
 define("VERSION_STRING", '<img src="design_templates/nconf_fresh/nconf-logo-16.gif" style="vertical-align:bottom" alt="nconf-logo">
-                          <b>NConf '.VERSION_NUMBER.' (dev)</b>');
+                          <b>NConf '.VERSION_NUMBER.'</b>');
 #define("VERSION_STRING", '<img src="design_templates/nconf_fresh/nconf-logo-16.gif" style="vertical-align:bottom" alt="nconf-logo">
 #                          <b>NConf '.VERSION_NUMBER.' (final)</b>');
 
-define("VERSION_NOT_FINAL_WARNING", 'This is a pre-release version of NConf '.VERSION_NUMBER.', intended FOR TESTING PURPOSES ONLY! 
+define("VERSION_NOT_FINAL_WARNING_DISABLE", 'This is a pre-release version of NConf '.VERSION_NUMBER.', intended FOR TESTING PURPOSES ONLY! 
                                     <br>Do not use this version in a production environment or to upgrade your productive NConf installation!
                                     <br>Note that we will not provide any update functionality from this pre-release to the next official release.');
-#define("VERSION_NOT_FINAL_WARNING",'');
+define("VERSION_NOT_FINAL_WARNING",'');
 
 define("COPYRIGHT_STRING", 'Project homepage: <a href="http://www.nconf.org/" target="_blank">www.nconf.org</a>');
 
 define("DISCLAIMER_STRING", '<b>Developed by:</b>
                           <br>
                           <ul>
+                            <li>
+                              <a href="https://github.com/BrixSat" target="_blank">Brixsat | Cesar Araujo</a>
+                            </li>
                             <li>
                               <a href="https://github.com/Cyclodex" target="_blank">Cyclodex | Fabian Gander</a>
                             </li>
