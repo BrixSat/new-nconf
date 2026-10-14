@@ -1,5 +1,14 @@
 <?php
 
+# Checked before head.php prints any HTML, so the error keeps its 400 status
+require_once __DIR__.'/include/error_handler.php';
+
+# xmode=pikett lets ordinary users edit on-call settings and implies class=contact
+if ( !(isset($_GET["xmode"]) && $_GET["xmode"] === "pikett")
+    && ( !isset($_GET["class"]) || !is_string($_GET["class"]) || $_GET["class"] === "" ) ){
+    throw HttpException::badRequest('The "class" parameter is required.');
+}
+
 require_once 'include/head.php';
 
 // Form action and url handling
@@ -34,35 +43,15 @@ if ( !empty($_GET["quantity"]) ){
 
 
 
-if ( isset($_GET["spec"]) ) {
-    $spec = $_GET["spec"];
-    $show_class_select = "yes";
-}else{
-    $spec = "";
-}
 
 
-// show select class field when no class is given in URL
-// (admin check would be not relevant, because access rules are set very smart :)
-if (  ( !isset($_GET["class"]) AND empty($_GET["class"]) ) AND ($_SESSION["group"] == GROUP_ADMIN) AND (!isset($_GET["xmode"])) ) {
-    $show_class_select = "yes";
-}
 
 
 
 # set Filters
 
-// Class Filter
-if ( isset($_GET["filter1"]) AND !empty($_GET["filter1"])) {
-    $class = $_GET["filter1"];
-    $_SESSION["cache"]["searchfilter"]["filter1"] = $class;
-}elseif ( isset($_GET["class"]) ) {
-    $class = $_GET["class"];
-}elseif ( isset($_SESSION["cache"]["searchfilter"]["filter1"]) ) {
-    $class = $_SESSION["cache"]["searchfilter"]["filter1"];
-}else{
-    $class = "";
-}
+// Class (mandatory, checked at the top of this file)
+$class = isset($_GET["class"]) ? $_GET["class"] : "";
 
 # special mode to allow ordinary users to change on-call settings
 if (isset($_GET["xmode"]) && $_GET["xmode"] == "pikett"){
@@ -71,15 +60,6 @@ if (isset($_GET["xmode"]) && $_GET["xmode"] == "pikett"){
 
 
 
-# OS Filter
-if ( isset($_GET["os"]) ) {
-    $filter_os = $_GET["os"];
-    $_SESSION["cache"][$class]["searchfilter"]["os"] = $filter_os;
-}elseif ( isset($_SESSION["cache"][$class]["searchfilter"]["os"]) ) {
-    $filter_os = $_SESSION["cache"][$class]["searchfilter"]["os"];
-}else{
-    $filter_os = "";
-}
 
 # saved/cached ordering
 if ( isset($_GET["order"]) ) {
@@ -91,20 +71,7 @@ if ( isset($_GET["order"]) ) {
     $order = "";
 }
 
-if ( ($class == "host") AND ($spec == "") ){
-    $show_os_select = 1;
-}
 
-# Searchfilter
-if ( isset($_GET["filter2"]) AND !empty($_GET["filter2"]) ) {
-    $filter2 = $_GET["filter2"];
-    $filter2 = str_replace("%", "*", $filter2);
-    $_SESSION["cache"][$class]["searchfilter"]["filter2"] = $filter2;
-}elseif ( isset($_SESSION["cache"][$class]["searchfilter"]["filter2"]) ) {
-    $filter2 = $_SESSION["cache"][$class]["searchfilter"]["filter2"];
-}else{
-    $filter2 = "";
-}
 
 # quantity
 # how many entries to show
@@ -212,130 +179,27 @@ if ( (defined('CMDB_SERVERLIST_COMPARE') AND CMDB_SERVERLIST_COMPARE == 1) AND (
 $_SESSION["after_delete_page"] = $request_url;
 
 
-echo '<form name="search" action="'.$request_url.'" method="get">';
-# set some var for search form
-if (!empty($_GET["class"]) ){
-    echo '<input type="hidden" id="class" name="class" value="'.$class.'">';
-}
-//if (!empty($_GET["order"]) ){
-if ( !empty($order) ){
-    echo '<input type="hidden" name="order" value="'.$order.'">';
-}
-if (!empty($_GET["quantity"]) ){
-    echo '<input type="hidden" name="quantity" value="'.$_GET["quantity"].'">';
-}
 
 // Page output begin
+# title and add icon share one line; the add text lives in the icon's tooltip
+echo '<div class="overview-title">';
 echo NConf_HTML::page_title($class, '');
 
 // Create link
+    $add_text = htmlspecialchars('Add new '.$class, ENT_QUOTES | ENT_HTML5, 'UTF-8');
     $add_link =  '<div class="overview-add">';
             $add_item = get_image( array(  "type" => "design",
                                            "name" => "add",
                                            "size" => 16,
-                                           "tooltip" => 'Add '.isset($nav_class["friendly_name"]),
+                                           "tooltip" => $add_text,
+                                           "alt" => $add_text,
                                            "class" => "lighten ui-button"
                                         ) );
-            $add_link .= '<a href="handle_item.php?item='.$class.'">'.$add_item.' Add new '.$class.'</a>';
+            $add_link .= '<a href="handle_item.php?item='.urlencode($class).'" aria-label="'.$add_text.'">'.$add_item.'</a>';
             $add_link .= '</div>';
     echo $add_link;
-
-echo '<div class="search">';  
-echo '<table border=0 frame=box rules=none style="border-width: 0px">';
-
-
-// Class Filter
-if ( isset($show_class_select) ){
-    echo '<tr>';
-        echo '<td colspan=2>Class</td>';
-
-        $query = 'SELECT config_class FROM ConfigClasses ORDER BY config_class';
-        $result = db_handler($query, 'result', "Get Config Classes");
-
-    echo '</tr>';
-    echo '<tr>';
-        //echo '<td><select name="filter1" style="width:190px">';
-        echo '<td colspan=2><select name="filter1">';
-        echo '<option value="">'.SELECT_EMPTY_FIELD.'</option>';
-
-        while($row = mysqli_fetch_row($result)){
-            echo "<option value=$row[0]";
-            if ( (isset($class) ) AND ($row[0] == $class) ) echo " SELECTED";
-            echo ">$row[0]</option>";
-        }
-
-        echo '</select>&nbsp;&nbsp;</td>';
-    echo '</tr>';
-}
-
-
-// Searchfilter
-echo '<tr>';
-    echo '<td>Searchfilter</td>';
-
-    if ( isset($show_os_select) ){
-        echo '<td>OS</td>';
-    }
-    echo '<td></td>';
-echo '</tr>';
-
-echo '<tr>';
-
-    echo '<td><input style="width:150px" type="text" name="filter2" value="'.$filter2.'"></td>';
-
-    if ( isset($show_os_select) ){
-        // OS filter
-        echo '<td>';
-        echo '<select name="os" style="width:200px">';
-        echo '<option value="">'.SELECT_EMPTY_FIELD.'</option>';
-
-        $query = 'SELECT fk_id_item,attr_value
-                    FROM ConfigValues,ConfigAttrs,ConfigClasses
-                    WHERE id_attr=fk_id_attr
-                    AND id_class=fk_id_class
-                    AND naming_attr="yes"
-                    AND config_class="os"
-                    ORDER BY attr_value
-                 ';
-        $result = db_handler($query, 'result', "select all os");
-        while ($entry = mysqli_fetch_assoc($result) ){
-            echo '<option value='.$entry["fk_id_item"];
-            if ( (isset($filter_os) ) AND ($entry["fk_id_item"] == $filter_os) ) echo " SELECTED";
-            echo '>'.$entry["attr_value"].'</option>';
-        }
-        echo '</select></td>';
-    }
-
-
-    // submit button
-    echo '<td align="left" id="buttons">&nbsp;&nbsp;<input type="submit" value="Search" name="search" align="middle">';
-
-    // Clear button
-    if ( isset($_SESSION["cache"][$class]["searchfilter"]) ){
-
-        # get the script name
-        $clear_url = $_SERVER['SCRIPT_NAME'].'?';
-
-        # remember the class only if given ( should not be set on "general overview" )
-        if (isset($_GET["class"]) )   $clear_url .= 'class='.$class.'&';
-        # clear filter 1 if given
-        if (isset($_GET["filter1"]) ) $clear_url .= 'filter1=&';
-
-        # add the clear
-        $clear_url .= 'clear=1';
-
-        echo '&nbsp;&nbsp;<input type="button" name="clear" value="Clear" onClick="window.location.href=\''.$clear_url.'\'">';
-    }
-
-    echo "</td>";
-echo "</tr>";
-
-echo '</table>';
-
 echo '</div>';
 
-
-echo '</form>';
 
 # open new form
 echo '<form id="advanced" name="advanced" action="'.$request_url4form.'" method="post">';
@@ -345,10 +209,6 @@ if (!empty($class) ){
     echo '<input type="hidden" id="class" name="class" value="'.$class.'">';
 }
 
-# Advanced Tab-View
-if (!isset($_GET["xmode"])){
-    require_once 'include/tabs/advanced.php';
-}
 
 
 
@@ -420,20 +280,6 @@ if( ( isset($class) ) AND ($class != "") ){
            AND id_class=fk_id_class 
            AND config_class="'.$class.'"';
 
-        # use filters
-        if ($filter2 != ""){
-            $filter2 = str_replace("*", "%", $filter2);
-            # default to a substring match when no explicit wildcard was typed
-            # (so "ssl" matches "ssl_2.6", not only an exact "ssl")
-            if ( strpos($filter2, "%") === FALSE ){
-                $filter2 = "%".$filter2."%";
-            }
-            $filter2 = escape_string($filter2);
-            $query .= ' AND attr_value LIKE "'.$filter2.'"';
-        }
-
-        # use os filter
-        if ( !empty($filter_os) ) $query .= ' HAVING os_id = "'.$filter_os.'"';
 
         # Handle order
         if (!empty($order) ){
@@ -525,25 +371,6 @@ if( ( isset($class) ) AND ($class != "") ){
                         AND naming_attr="yes"
                         AND ConfigItems.fk_id_class=id_class
                         AND config_class="'.$class.'"';
-        }
-        if($filter2 != ""){
-            # replace * with % for sql search
-            $filter2 = str_replace("*", "%", $filter2);
-            # default to a substring match when no explicit wildcard was typed
-            if ( strpos($filter2, "%") === FALSE ){
-                $filter2 = "%".$filter2."%";
-            }
-            $filter2 = escape_string($filter2);
-            if($class == "service"){
-                # search for servername AND servicename on "service"
-                $query .= ' HAVING CONCAT(hostname,entryname) LIKE "'.$filter2.'"';
-            }elseif($class == "checkcommand"){
-                # search for default service name and checkcommand name
-                $query .= 'HAVING default_service_name LIKE "'.$filter2.'"
-                            OR entryname LIKE "'.$filter2.'"';
-            }else{
-                $query .= ' AND attr_value LIKE "'.$filter2.'"';
-            }
         }
         
         # XMODE
@@ -680,6 +507,8 @@ if( ( isset($class) ) AND ($class != "") ){
 
 
 
+    # list table and the advanced actions box side by side
+    echo '<div class="overview-body">';
     if ($class == "host"){
         echo '<table class="ui-nconf-table ui-nconf-max-width ui-widget ui-widget-content">';
         echo '<colgroup>
@@ -768,12 +597,13 @@ if( ( isset($class) ) AND ($class != "") ){
                 .FRIENDLY_NAME_IPADDRESS.
                 '</a></td>';
             $order_value = ($order ==  "collector ASC") ? 'collector DESC' : 'collector ASC';
-            echo '<td width=100>
+            # data-filter="select": the client-side filter offers the values present in the list
+            echo '<td width=100 data-filter="select">
                 <a href="'.$request_url4ordering.'&order='.$order_value.'">'
                 .FRIENDLY_NAME_NAGIOSSERVER.
                 '</a></td>';
             $order_value = ($order ==  "os ASC") ? 'os DESC' : 'os ASC';
-            echo '<td width=100>
+            echo '<td width=100 data-filter="select">
                 <a href="'.$request_url4ordering.'&order='.$order_value.'">'
                 .FRIENDLY_NAME_OS.
                 '</a></td>';
@@ -935,6 +765,12 @@ if( ( isset($class) ) AND ($class != "") ){
     }
     echo '</tbody>';
     echo '</table>';
+
+    # Advanced Tab-View, right of the list
+    if (!isset($_GET["xmode"])){
+        require_once 'include/tabs/advanced.php';
+    }
+    echo '</div>';
 
 }
 

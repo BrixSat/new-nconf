@@ -103,6 +103,8 @@ $NConf_PERMISSIONS = new NConf_PERMISSIONS;
     <script src="include/js/ajax.js" type="text/javascript"></script>
     <!-- type-to-filter enhancement for all single <select> dropdowns -->
     <script src="include/js/nconf_searchable_select.js" type="text/javascript"></script>
+    <!-- click-to-sort and per-column filter for tables with a ui-widget-header thead -->
+    <script src="include/js/nconf_table_sort_filter.js" type="text/javascript"></script>
 
     
     <?php

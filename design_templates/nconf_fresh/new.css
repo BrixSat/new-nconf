@@ -316,10 +316,53 @@ pre {
 .overview_quantity {
   text-align: right;
   vertical-align: bottom;
+  /* bottom-aligned links would otherwise touch the list table directly below */
+  padding-bottom: 4px;
+}
+
+/* Overview title row: the add icon sits right of the heading, above the shared bottom border */
+.overview-title {
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid #CCC;
+  margin-bottom: 10px;
+}
+
+/* flex also cancels the icon's float, which would otherwise wrap above the heading */
+.overview-title .title {
+  display: flex;
+  align-items: center;
+  border-bottom: 0 none;
+  margin-bottom: 0;
 }
 
 .overview-add {
   margin: 10px 0;
+}
+
+/* auto left margin pushes the add icon to the right end of the title bar */
+.overview-title .overview-add {
+  margin: 0 0 0 auto;
+  padding-left: 10px;
+}
+
+/* advanced actions box sits right of the list table instead of pinned to the page corner */
+.overview-body {
+  display: flex;
+  align-items: flex-start;
+}
+
+/* a 100% wide list (hosts) would push the actions box off-screen; take the remaining space instead */
+.overview-body > .ui-nconf-max-width {
+  width: auto;
+  flex: 1 1 auto;
+}
+
+#advanced .overview-body #ui-nconf-icon-bar {
+  position: static;
+  flex: 0 0 auto;
+  margin-top: 0;
+  margin-left: 10px;
 }
 
 .overview-add a {
