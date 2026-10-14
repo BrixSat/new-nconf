@@ -6,6 +6,11 @@
 ##  also the functions will be loaded
 ##
 
+#
+# Default error handling — registered first so config/DB load failures are caught
+#
+require_once(dirname(__FILE__).'/include/error_handler.php');
+
 # get this dirname
 $config_dir = dirname(__FILE__).'/config/';
 #
