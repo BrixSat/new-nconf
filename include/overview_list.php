@@ -7,7 +7,11 @@ declare(strict_types=1);
  * Column expressions and sort orders come from the fixed lists below, never
  * from the request; only filter values reach the SQL, and only as bound
  * parameters.
+ * Written for PHP 7.3.4 as well as 8.x: no typed properties, union types,
+ * match, arrow functions or array spread.
  */
+
+use NConf\Db\Sql;
 
 /** Shown, and filtered on, for hosts without a linked collector. */
 const OVERVIEW_NOT_MONITORED = 'not monitored';
@@ -18,81 +22,159 @@ const OVERVIEW_FILTER_MAX_LENGTH = 200;
 /** GET form that owns the filter controls (they join it via form=""). */
 const OVERVIEW_FILTER_FORM = 'overview_filter';
 
-final readonly class OverviewColumn
+final class OverviewColumn
 {
-    public function __construct(
-        /** Request key: filter[<key>]. */
-        public string $key,
-        /** SQL over one overview row (derived table t); fixed, never user input. */
-        public string $expression,
-        /** Dropdown of the values present, matched exactly, instead of a text box. */
-        public bool $isSelect = false,
-    ) {
+    /** @var string request key: filter[<key>] */
+    private $key;
+
+    /** @var string SQL over one overview row (derived table t); fixed, never user input */
+    private $expression;
+
+    /** @var bool dropdown of the values present, matched exactly, instead of a text box */
+    private $isSelect;
+
+    public function __construct(string $key, string $expression, bool $isSelect = false)
+    {
+        $this->key = $key;
+        $this->expression = $expression;
+        $this->isSelect = $isSelect;
+    }
+
+    public function key(): string
+    {
+        return $this->key;
+    }
+
+    public function expression(): string
+    {
+        return $this->expression;
+    }
+
+    public function isSelect(): bool
+    {
+        return $this->isSelect;
     }
 }
 
-final readonly class SqlCondition
+final class SqlCondition
 {
+    /** @var string */
+    private $sql;
+
+    /** @var list<string> one per "?" in $sql */
+    private $params;
+
     /**
      * @param list<string> $params one per "?" in $sql
      */
-    public function __construct(
-        public string $sql,
-        public array $params,
-    ) {
+    public function __construct(string $sql, array $params)
+    {
+        $this->sql = $sql;
+        $this->params = $params;
+    }
+
+    public function sql(): string
+    {
+        return $this->sql;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function params(): array
+    {
+        return $this->params;
     }
 }
 
-final readonly class OverviewPage
+final class OverviewPage
 {
+    /** @var mysqli_result */
+    private $rows;
+
+    /** @var int rows matching the filters */
+    private $total;
+
+    /** @var int rows before filtering */
+    private $unfiltered;
+
+    /** @var int offset actually used: past the end it is moved to the last page */
+    private $start;
+
+    /** @var array<string, array<int|string, int>> */
+    private $options;
+
     /**
-     * @param array<string, array<string, int>> $options select column key => value => rows holding it
+     * @param array<string, array<int|string, int>> $options select column key => value => rows holding it
+     *                                                    (numeric values become int keys in PHP arrays)
      */
-    public function __construct(
-        public mysqli_result $rows,
-        /** Rows matching the filters. */
-        public int $total,
-        /** Rows before filtering. */
-        public int $unfiltered,
-        /** Offset actually used: past the end it is moved to the last page. */
-        public int $start,
-        public array $options,
-    ) {
+    public function __construct(mysqli_result $rows, int $total, int $unfiltered, int $start, array $options)
+    {
+        $this->rows = $rows;
+        $this->total = $total;
+        $this->unfiltered = $unfiltered;
+        $this->start = $start;
+        $this->options = $options;
+    }
+
+    public function rows(): mysqli_result
+    {
+        return $this->rows;
+    }
+
+    public function total(): int
+    {
+        return $this->total;
+    }
+
+    public function unfiltered(): int
+    {
+        return $this->unfiltered;
+    }
+
+    public function start(): int
+    {
+        return $this->start;
+    }
+
+    /**
+     * @return array<string, array<int|string, int>>
+     */
+    public function options(): array
+    {
+        return $this->options;
     }
 }
 
 /**
- * @return array<string, OverviewColumn> keyed by OverviewColumn::$key
+ * @return array<string, OverviewColumn> keyed by OverviewColumn::key()
  */
 function overview_columns(string $class): array
 {
-    $columns = match ($class) {
-        'host' => [
-            new OverviewColumn('name', 'hostname'),
-            new OverviewColumn('ip', 'IP'),
-            new OverviewColumn(
-                'collector',
-                "IFNULL(NULLIF(collector, ''), '" . OVERVIEW_NOT_MONITORED . "')",
-                isSelect: true,
-            ),
-            new OverviewColumn('os', 'os', isSelect: true),
-        ],
-        // the list shows "host: service", so that is what the filter searches
-        'service' => [
-            new OverviewColumn('name', "CONCAT_WS(': ', hostname, entryname)"),
-        ],
-        // the order decides which name is shown first; either one matches
-        'checkcommand' => [
-            new OverviewColumn('name', "CONCAT_WS(' ', entryname, default_service_name)"),
-        ],
-        default => [
-            new OverviewColumn('name', 'entryname'),
-        ],
-    };
+    switch ($class) {
+        case 'host':
+            $columns = [
+                new OverviewColumn('name', 'hostname'),
+                new OverviewColumn('ip', 'IP'),
+                new OverviewColumn('collector', "IFNULL(NULLIF(collector, ''), '" . OVERVIEW_NOT_MONITORED . "')", true),
+                new OverviewColumn('os', 'os', true),
+            ];
+            break;
+        case 'service':
+            // the list shows "host: service", so that is what the filter searches
+            $columns = [new OverviewColumn('name', "CONCAT_WS(': ', hostname, entryname)")];
+            break;
+        case 'checkcommand':
+            // the order decides which name is shown first; either one matches
+            $columns = [new OverviewColumn('name', "CONCAT_WS(' ', entryname, default_service_name)")];
+            break;
+        default:
+            $columns = [new OverviewColumn('name', 'entryname')];
+    }
 
     $keyed = [];
     foreach ($columns as $column) {
-        $keyed[$column->key] = $column;
+        $keyed[$column->key()] = $column;
     }
 
     return $keyed;
@@ -105,7 +187,7 @@ function overview_columns(string $class): array
  */
 function overview_orders(string $class): array
 {
-    return match ($class) {
+    $orders = [
         'host' => [
             'hostname ASC',
             'hostname DESC',
@@ -126,11 +208,9 @@ function overview_orders(string $class): array
             'sorting ASC, entryname ASC',
             'sorting DESC, entryname DESC',
         ],
-        default => [
-            'entryname ASC',
-            'entryname DESC',
-        ],
-    };
+    ];
+
+    return $orders[$class] ?? ['entryname ASC', 'entryname DESC'];
 }
 
 /**
@@ -148,10 +228,11 @@ function overview_sort_direction(string $order, ?string $column = null): ?string
 }
 
 /**
+ * @param mixed $raw filter[] from the request or the session
  * @param array<string, OverviewColumn> $columns
  * @return array<string, string> column key => trimmed value ('' = not filtered)
  */
-function overview_parse_filters(mixed $raw, array $columns): array
+function overview_parse_filters($raw, array $columns): array
 {
     $filters = [];
     foreach ($columns as $key => $column) {
@@ -187,19 +268,20 @@ function overview_where(array $columns, array $filters, ?string $skipKey = null)
             continue;
         }
         $column = $columns[$key];
-        if ($column->isSelect) {
-            $clauses[] = $column->expression . ' = ?';
+        if ($column->isSelect()) {
+            $clauses[] = $column->expression() . ' = ?';
             $params[] = $value;
         } else {
             // "!" as escape character works whatever sql_mode says about backslashes
-            $clauses[] = $column->expression . " LIKE ? ESCAPE '!'";
+            $clauses[] = $column->expression() . " LIKE ? ESCAPE '!'"; // sql-safe: fixed column expression
             $params[] = '%' . strtr($value, ['!' => '!!', '%' => '!%', '_' => '!_']) . '%';
         }
     }
 
     return new SqlCondition(
+        // sql-safe: only fixed column expressions and "?" placeholders are joined here
         $clauses === [] ? '' : ' WHERE ' . implode(' AND ', $clauses),
-        $params,
+        $params
     );
 }
 
@@ -209,24 +291,28 @@ function overview_where(array $columns, array $filters, ?string $skipKey = null)
  */
 function overview_query(mysqli $dbh, string $sql, array $params): mysqli_result
 {
-    $stmt = mysqli_prepare($dbh, $sql);
-    if ($stmt === false) {
-        throw new RuntimeException('Overview query could not be prepared: ' . mysqli_error($dbh));
+    $statement = Sql::run($dbh, $sql, $params);
+    if ($statement === false) {
+        throw new RuntimeException('Overview query failed: ' . mysqli_error($dbh));
     }
-    if (!mysqli_stmt_execute($stmt, $params === [] ? null : $params)) {
-        throw new RuntimeException('Overview query failed: ' . mysqli_stmt_error($stmt));
-    }
-    $result = mysqli_stmt_get_result($stmt);
-    if ($result === false) {
-        throw new RuntimeException('Overview query returned no result: ' . mysqli_stmt_error($stmt));
+    $result = $statement->result();
+    if (!$result instanceof mysqli_result) {
+        throw new RuntimeException('Overview query returned no result set.');
     }
 
     return $result;
 }
 
-function overview_count(mysqli $dbh, string $from, SqlCondition $where): int
+/**
+ * @param list<string> $fromParams values for the "?"s in $from, which come before the WHERE ones
+ */
+function overview_count(mysqli $dbh, string $from, array $fromParams, SqlCondition $where): int
 {
-    $result = overview_query($dbh, 'SELECT COUNT(*) AS n' . $from . $where->sql, $where->params);
+    $result = overview_query(
+        $dbh,
+        'SELECT COUNT(*) AS n' . $from . $where->sql(), // sql-safe: parts built here, values bound
+        array_merge($fromParams, $where->params())
+    );
 
     return (int) (mysqli_fetch_assoc($result)['n'] ?? 0);
 }
@@ -239,6 +325,7 @@ function overview_count(mysqli $dbh, string $from, SqlCondition $where): int
  * @param array<string, string> $filters
  * @param string $orderBy from overview_orders() plus a unique tie-breaker, so pages never overlap
  * @param int $pageSize 0 = all rows
+ * @param list<string> $baseParams values for the "?"s in $baseQuery; the caller never pastes values into it
  */
 function overview_fetch_page(
     mysqli $dbh,
@@ -248,14 +335,15 @@ function overview_fetch_page(
     string $orderBy,
     int $start,
     int $pageSize,
+    array $baseParams = []
 ): OverviewPage {
-    $from = ' FROM (' . $baseQuery . ') AS t';
+    $from = ' FROM (' . $baseQuery . ') AS t'; // sql-safe: base query values arrive in $baseParams
     $where = overview_where($columns, $filters);
 
-    $total = overview_count($dbh, $from, $where);
-    $unfiltered = ($where->sql === '')
+    $total = overview_count($dbh, $from, $baseParams, $where);
+    $unfiltered = ($where->sql() === '')
         ? $total
-        : overview_count($dbh, $from, new SqlCondition('', []));
+        : overview_count($dbh, $from, $baseParams, new SqlCondition('', []));
 
     if ($pageSize === 0) {
         $start = 0;
@@ -263,27 +351,29 @@ function overview_fetch_page(
         $start = ($total > 0) ? intdiv($total - 1, $pageSize) * $pageSize : 0;
     }
     // both values are ints, and bound as strings LIMIT is rejected by some MySQL versions
-    $limit = ($pageSize > 0) ? ' LIMIT ' . $start . ', ' . $pageSize : '';
+    $limit = ($pageSize > 0) ? ' LIMIT ' . $start . ', ' . $pageSize : ''; // sql-safe: two ints
 
     $rows = overview_query(
         $dbh,
-        'SELECT *' . $from . $where->sql . ' ORDER BY ' . $orderBy . $limit,
-        $where->params,
+        // sql-safe: $orderBy comes from overview_orders(), the rest is built here with "?"s
+        'SELECT *' . $from . $where->sql() . ' ORDER BY ' . $orderBy . $limit,
+        array_merge($baseParams, $where->params())
     );
 
     // each dropdown lists only the values reachable under the other filters
     $options = [];
     foreach ($columns as $key => $column) {
-        if (!$column->isSelect) {
+        if (!$column->isSelect()) {
             continue;
         }
         $others = overview_where($columns, $filters, $key);
         $result = overview_query(
             $dbh,
-            'SELECT ' . $column->expression . ' AS opt_value, COUNT(*) AS n'
-                . $from . $others->sql
+            // sql-safe: fixed column expression, values bound
+            'SELECT ' . $column->expression() . ' AS opt_value, COUNT(*) AS n'
+                . $from . $others->sql()
                 . ' GROUP BY opt_value',
-            $others->params,
+            array_merge($baseParams, $others->params())
         );
         $counts = [];
         while ($row = mysqli_fetch_assoc($result)) {
@@ -308,7 +398,7 @@ function overview_header_cell(
     string $labelHtml,
     string $href,
     ?string $direction,
-    string $attributes = '',
+    string $attributes = ''
 ): string {
     $sorted = '';
     $indicator = '';
@@ -326,16 +416,18 @@ function overview_header_cell(
 }
 
 /**
- * @param array<string, int> $counts value => rows holding it, from OverviewPage::$options
+ * @param array<int|string, int> $counts value => rows holding it, from OverviewPage::options()
  */
 function overview_filter_control(OverviewColumn $column, string $value, array $counts, string $label): string
 {
-    $esc = static fn (string $text): string => htmlspecialchars($text, ENT_QUOTES | ENT_HTML5, 'UTF-8');
-    $common = ' class="ntsf-filter" name="filter[' . $esc($column->key) . ']"'
+    $esc = static function (string $text): string {
+        return htmlspecialchars($text, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    };
+    $common = ' class="ntsf-filter" name="filter[' . $esc($column->key()) . ']"'
         . ' form="' . OVERVIEW_FILTER_FORM . '"'
         . ' aria-label="' . $esc('Filter ' . $label) . '"';
 
-    if (!$column->isSelect) {
+    if (!$column->isSelect()) {
         // size="1": the column's data, not the box's default width, decides how wide the column is
         return '<input type="search"' . $common . ' value="' . $esc($value) . '" placeholder="filter" size="1">';
     }
@@ -344,7 +436,9 @@ function overview_filter_control(OverviewColumn $column, string $value, array $c
     if ($value !== '' && !array_key_exists($value, $counts)) {
         $counts[$value] = 0;
     }
-    uksort($counts, static fn (int|string $a, int|string $b): int => strnatcasecmp((string) $a, (string) $b));
+    uksort($counts, static function ($a, $b): int {
+        return strnatcasecmp((string) $a, (string) $b);
+    });
 
     $html = '<select' . $common . '><option value="">all</option>';
     foreach ($counts as $option => $count) {

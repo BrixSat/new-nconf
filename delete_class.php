@@ -10,9 +10,9 @@ if(  ( ( isset($_POST["delete"]) ) AND ($_POST["delete"] == "yes") ) AND
 
     # Delete entry
     $query = 'DELETE FROM ConfigClasses
-                WHERE id_class='.$_POST["id"];
+                WHERE id_class=?';
 
-    $result = db_handler($query, "result", "Delete Class");
+    $result = db_handler($query, "result", "Delete Class", array($_POST["id"]));
     if ($result) {
         echo TXT_DELETED;
         history_add("removed", "Class", $_POST["class_name"]);
@@ -31,12 +31,12 @@ if(  ( ( isset($_POST["delete"]) ) AND ($_POST["delete"] == "yes") ) AND
         $_SESSION["after_delete_page"] = $_SERVER["HTTP_REFERER"];
     }
     # class name
-    $query = 'SELECT config_class FROM ConfigClasses where id_class='.$_GET["id"];
-    $class_name = db_handler($query, 'getOne', "get class name");
+    $query = 'SELECT config_class FROM ConfigClasses where id_class=?';
+    $class_name = db_handler($query, 'getOne', "get class name", array((string)$_GET["id"]));
 
     // Fetch attr name
-    $query = 'SELECT attr_name  FROM ConfigAttrs, ConfigClasses WHERE id_class='.$_GET["id"].' AND fk_id_class=ConfigClasses.id_class';
-    $attr = db_handler($query, "array", "Get Attrs of this Class");
+    $query = 'SELECT attr_name  FROM ConfigAttrs, ConfigClasses WHERE id_class=? AND fk_id_class=ConfigClasses.id_class';
+    $attr = db_handler($query, "array", "Get Attrs of this Class", array((string)$_GET["id"]));
 
     if ( isset($attr[0]["attr_name"]) ){
 

@@ -14,9 +14,9 @@ if(  ( ( isset($_POST["delete"]) ) AND ($_POST["delete"] == "yes") ) AND
     
     // Delete entry
     $query = 'DELETE FROM ConfigAttrs
-                WHERE id_attr='.$_POST["id"];
+                WHERE id_attr=?';
 
-    $result = db_handler($query, "result", "Delete entry");
+    $result = db_handler($query, "result", "Delete entry", array($_POST["id"]));
     if ( $result ){
         message ($debug, '', "ok");
         history_add("removed", "Attribute", $_POST["name"]);
@@ -37,8 +37,8 @@ if(  ( ( isset($_POST["delete"]) ) AND ($_POST["delete"] == "yes") ) AND
     
 
     // Fetch attr name
-    $query = 'SELECT attr_name, config_class FROM ConfigAttrs, ConfigClasses WHERE id_attr='.$_GET["id"].' AND fk_id_class=ConfigClasses.id_class';
-    $attr = db_handler($query, "assoc", "Fetch attr name");
+    $query = 'SELECT attr_name, config_class FROM ConfigAttrs, ConfigClasses WHERE id_attr=? AND fk_id_class=ConfigClasses.id_class';
+    $attr = db_handler($query, "assoc", "Fetch attr name", array($_GET["id"]));
 
     // warning message
     $content = 'All &quot;<b>'.$attr["config_class"].'</b>&quot; items will lose their &quot;<b>'.$attr["attr_name"].'</b>&quot; attribute.

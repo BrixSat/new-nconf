@@ -58,8 +58,8 @@ if ($write2db == "yes"){
 
         # link new service to cloned host
         $query = 'INSERT INTO ItemLinks (fk_id_item,fk_item_linked2,fk_id_attr) 
-                    VALUES ('.$new_service_id.','.$destination_host_id.','.$service_tpl["fk_id_attr"].')';
-        $result = db_handler($query, "insert", "link new service to cloned host");
+                    VALUES (?, ?, ?)';
+        $result = db_handler($query, "insert", "link new service to cloned host", array($new_service_id, $destination_host_id, $service_tpl["fk_id_attr"]));
         if ($result){
             message ($debug, 'Successfully linked service '.$new_service_id.' to host '.$destination_host_id);
         }else{
@@ -97,12 +97,12 @@ if ($write2db == "yes"){
         $query =   'INSERT INTO ConfigValues
                         (attr_value, fk_id_attr, fk_id_item)
                     VALUES
-                        ("'.$new_service_name.'", "'.$service_name_attr_id.'", '.$new_service_id.' )
+                        (?, ?, ?)
                     ON DUPLICATE KEY UPDATE
-                        attr_value="'.$new_service_name.'"
+                        attr_value=?
                     ';
 
-        $insert = db_handler($query, "insert", 'Set name of cloned service to "'.$new_service_name.'"');
+        $insert = db_handler($query, "insert", 'Set name of cloned service to "'.$new_service_name.'"', array($new_service_name, $service_name_attr_id, $new_service_id, $new_service_name));
         if ($insert){
             // add create entry
             history_add("created", "service", $new_service_name, $new_service_id);
@@ -117,23 +117,23 @@ if ($write2db == "yes"){
 
         # clone basic data of original service onto new service
         $query = 'INSERT INTO ConfigValues (fk_id_attr,attr_value,fk_id_item)
-                    SELECT id_attr,attr_value,'.$new_service_id.' FROM ConfigAttrs,ConfigValues,ConfigItems
+                    SELECT id_attr,attr_value,? FROM ConfigAttrs,ConfigValues,ConfigItems
                         WHERE id_attr=fk_id_attr
                             AND id_item=fk_id_item
-                            AND id_item='.$service_tpl["fk_id_item"].'
+                            AND id_item=?
                             AND naming_attr = "no"
                         ORDER BY ordering';
 
-        $result = db_handler($query, "insert", "clone basic data of original service onto new service");
+        $result = db_handler($query, "insert", "clone basic data of original service onto new service", array($new_service_id, $service_tpl["fk_id_item"]));
 
         # HISTORY add :basic data
         $query = 'SELECT id_attr,attr_value FROM ConfigAttrs,ConfigValues,ConfigItems
                         WHERE id_attr=fk_id_attr
                             AND id_item=fk_id_item
-                            AND id_item='.$service_tpl["fk_id_item"].'
+                            AND id_item=?
                             AND naming_attr = "no"
                         ORDER BY ordering';
-        $basic_entries = db_handler($query, "array", "for history: get basic data");
+        $basic_entries = db_handler($query, "array", "for history: get basic data", array($service_tpl["fk_id_item"]));
         foreach ($basic_entries AS $entry){
             history_add("added", $entry["id_attr"], $entry["attr_value"], $new_service_id);
         }
@@ -141,19 +141,19 @@ if ($write2db == "yes"){
 
         # clone items linked to original service onto new service
         $query = 'INSERT INTO ItemLinks (fk_id_item,fk_item_linked2,fk_id_attr,cust_order)
-                    SELECT '.$new_service_id.',fk_item_linked2,fk_id_attr,cust_order FROM ItemLinks 
-                        WHERE fk_id_item='.$service_tpl["fk_id_item"].' 
-                            AND fk_item_linked2 <> '.$source_host_id.'
+                    SELECT ?,fk_item_linked2,fk_id_attr,cust_order FROM ItemLinks 
+                        WHERE fk_id_item=? 
+                            AND fk_item_linked2 <> ?
                         ORDER BY fk_item_linked2';
 
-        $result = db_handler($query, "insert", "clone items linked to original service onto new service");
+        $result = db_handler($query, "insert", "clone items linked to original service onto new service", array($new_service_id, $service_tpl["fk_id_item"], $source_host_id));
 
         # HISTORY add :linked items
         $query = 'SELECT fk_item_linked2,fk_id_attr,cust_order FROM ItemLinks
-                        WHERE fk_id_item='.$service_tpl["fk_id_item"].'
-                            AND fk_item_linked2 <> '.$source_host_id.'
+                        WHERE fk_id_item=?
+                            AND fk_item_linked2 <> ?
                         ORDER BY fk_item_linked2';
-        $linked_items = db_handler($query, "array", "for history: get linked items");
+        $linked_items = db_handler($query, "array", "for history: get linked items", array($service_tpl["fk_id_item"], $source_host_id));
         foreach ($linked_items AS $entry){
             history_add("assigned", $entry["fk_id_attr"], $entry["fk_item_linked2"], $new_service_id, "resolve_assignment");
         }
@@ -171,15 +171,15 @@ history_add("assigned", fk_id_attr = $timeperiod_id, fk_item_linked2 = $timeperi
 
         # clone items linked as child of original service onto new service
         $query = 'INSERT INTO ItemLinks (fk_id_item,fk_item_linked2,fk_id_attr,cust_order)
-                    SELECT fk_id_item,'.$new_service_id.',fk_id_attr,cust_order FROM ItemLinks
-                        WHERE fk_item_linked2 = '.$service_tpl["fk_id_item"].' ORDER BY fk_id_item';
+                    SELECT fk_id_item,?,fk_id_attr,cust_order FROM ItemLinks
+                        WHERE fk_item_linked2 = ? ORDER BY fk_id_item';
 
-        $result = db_handler($query, "insert", "clone items linked as child of original service onto new service");
+        $result = db_handler($query, "insert", "clone items linked as child of original service onto new service", array($new_service_id, $service_tpl["fk_id_item"]));
 
         # HISTORY add :linked as child items
         $query = 'SELECT fk_id_item,fk_id_attr,cust_order FROM ItemLinks
-                        WHERE fk_item_linked2 = '.$service_tpl["fk_id_item"].' ORDER BY fk_id_item';
-        $linkedAsChild_items = db_handler($query, "array", "for history: get linked as child items");
+                        WHERE fk_item_linked2 = ? ORDER BY fk_id_item';
+        $linkedAsChild_items = db_handler($query, "array", "for history: get linked as child items", array($service_tpl["fk_id_item"]));
         foreach ($linkedAsChild_items AS $entry){
             history_add("assigned", $entry["fk_id_attr"], $new_service_id, $entry["fk_id_item"], "resolve_assignment");
         }

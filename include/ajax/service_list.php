@@ -83,12 +83,12 @@ if ( $class == "service" ){
                 WHERE id_attr = ConfigValues.fk_id_attr
                 AND naming_attr = "yes"
                 AND id_class = fk_id_class
-                AND config_class = "'.$class.'"
+                AND config_class = ?
                 AND ConfigValues.fk_id_item = ItemLinks.fk_id_item
-                AND fk_item_linked2 = '.$host_ID.'
+                AND fk_item_linked2 = ?
                 ORDER BY entryname
              ';
-        $services = db_handler($query, "array", "Get ".$class." of host with its service_enabled status");
+        $services = db_handler($query, "array", "Get ".$class." of host with its service_enabled status", array($class, $host_ID));
     }
 
     # show message if no services found

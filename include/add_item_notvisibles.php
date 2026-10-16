@@ -9,9 +9,9 @@ if( !empty($_GET["item"]) OR !empty($config_class)  ){
                             FROM ConfigAttrs,ConfigClasses 
                             WHERE visible='no' 
                             AND id_class=fk_id_class 
-                            AND config_class='$config_class'
+                            AND config_class=?
     ";
-    $result = db_handler($query, "result", "Load not visible attrs");
+    $result = db_handler($query, "result", "Load not visible attrs", array($config_class));
     
     while($entry = mysqli_fetch_assoc($result)){
 
@@ -45,10 +45,10 @@ if( !empty($_GET["item"]) OR !empty($config_class)  ){
                                 FROM ConfigValues,ConfigAttrs 
                                 WHERE id_attr=fk_id_attr 
                                 AND naming_attr="yes" 
-                                AND fk_id_class="'.$entry["fk_show_class_items"].'"
-                                AND attr_value="'.$predef_value.'";
+                                AND fk_id_class=?
+                                AND attr_value=?
                     ';
-                    $entry2 = db_handler($query2, "getOne", "Load linked item: ( not visible assign_MANY/CUST_ORDER )");
+                    $entry2 = db_handler($query2, "getOne", "Load linked item: ( not visible assign_MANY/CUST_ORDER )", array($entry["fk_show_class_items"], $predef_value));
                 }
                 
                 // output

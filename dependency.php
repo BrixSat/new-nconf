@@ -28,10 +28,10 @@ function generate_tree ($id, $mode = ''){
                     AND ConfigAttrs.visible="yes"
                     AND fk_id_class=id_class
                     AND (SELECT naming_attr FROM ConfigAttrs WHERE id_attr=ConfigValues.fk_id_attr)="yes"
-                    AND ItemLinks.fk_id_item="'.$id.'"
+                    AND ItemLinks.fk_id_item=?
                 ORDER BY config_class DESC,attr_value';
 
-    $selected_item_info = db_handler($query, "assoc", "Get informations on selected item");
+    $selected_item_info = db_handler($query, "assoc", "Get informations on selected item", array($id));
 
     # get informations about host
     # prepend inforomation from selected host to the top of the list
@@ -264,7 +264,7 @@ if ($xmode == "nagiosview"){
                         FROM ConfigValues,ConfigAttrs,ConfigClasses
                         WHERE id_attr=fk_id_attr AND naming_attr="yes"
                            AND id_class=fk_id_class
-                           AND config_class="'.$class.'"
+                           AND config_class=?
                         ORDER BY hostname';
 
             }else{
@@ -283,11 +283,11 @@ if ($xmode == "nagiosview"){
                             AND id_attr=fk_id_attr
                             AND naming_attr="yes"
                             AND ConfigItems.fk_id_class=id_class
-                            AND config_class="'.$class.'"
+                            AND config_class=?
                             ORDER BY hostname,entryname';
             }
 
-            $items = db_handler($query, "array", "Get items of the class $class");
+            $items = db_handler($query, "array", "Get items of the class $class", array($class));
             echo '<tr>';
                 echo '<td><select name="id" style="width:192px" onchange="document.editor.submit()">';
                 //echo '<option value="">'.SELECT_EMPTY_FIELD.'</option>';

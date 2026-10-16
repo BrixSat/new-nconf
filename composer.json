@@ -1,0 +1,59 @@
+{
+    "name": "xarevision/nconf",
+    "description": "NConf: web-based configuration tool for Nagios.",
+    "type": "project",
+    "license": "GPL-2.0-only",
+    "require": {
+        "php": "7.3.4 || 8.5.11"
+    },
+    "require-dev": {
+        "phpstan/phpstan": "1.12.34",
+        "phpunit/phpunit": "9.6.38"
+    },
+    "autoload": {
+        "psr-4": {
+            "NConf\\": "src/"
+        },
+        "classmap": [
+            "include/classes/"
+        ]
+    },
+    "config": {
+        "optimize-autoloader": true,
+        "bump-after-update": true,
+        "allow-plugins": false,
+        "sort-packages": true,
+        "platform": {
+            "php": "7.3.4"
+        }
+    },
+    "scripts": {
+        "check-syntax": "find . -path ./vendor -prune -o -type f -name '*.php' -print0 | xargs -0 -n 1 php -l > /dev/null",
+        "check-sql": "php tools/check_sql_concat.php",
+        "analyse": "phpstan analyse --no-progress",
+        "check-php73": "tools/check_php73.sh",
+        "test": [
+            "@install-dev",
+            "phpunit"
+        ],
+        "install-dev": "@composer install",
+        "build-prod": [
+            "@check-syntax",
+            "@check-sql",
+            "@composer install --no-dev --optimize-autoloader --classmap-authoritative --no-interaction"
+        ],
+        "install-git-hooks": "bash -c 'if [ -d .git/hooks ]; then ln -sf ../../githooks/pre-commit .git/hooks/pre-commit; fi'",
+        "post-install-cmd": "@install-git-hooks",
+        "post-update-cmd": "@install-git-hooks"
+    },
+    "scripts-descriptions": {
+        "check-syntax": "Lint every PHP file outside vendor/ with php -l.",
+        "check-sql": "Fail when a query is built by pasting a variable into SQL instead of binding it.",
+        "analyse": "Run PHPStan (max level, PHP 7.3.4 rules) on the strictly typed files listed in phpstan.neon.",
+        "check-php73": "Lint the PHP 7.3-compatible code and run the tests under PHP 7.3.4 in a php:7.3.4-cli container (podman or docker).",
+        "test": "Ensure dev dependencies are installed, then run the PHPUnit test suite.",
+        "install-dev": "Install all dependencies, including require-dev (dev tooling, tests).",
+        "build-prod": "Lint-check and SQL-check, then install only production dependencies with a fully optimized, authoritative classmap autoloader.",
+        "install-git-hooks": "Symlink githooks/pre-commit into .git/hooks/ (run automatically after composer install/update)."
+    }
+}

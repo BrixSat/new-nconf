@@ -24,11 +24,11 @@ $config_class = "advanced-service";
                 AND id_class = fk_id_class
                 AND config_class = "advanced-service"
                 AND ConfigValues.fk_id_item = ItemLinks.fk_id_item
-                AND fk_item_linked2 = '.$host_id.'
+                AND fk_item_linked2 = ?
                 ORDER BY entryname
              ';
 
-    $old_linked_data[$attribute_id] = db_handler($query, "array_direct", "Get advanced-service of host with its service_enabled status");
+    $old_linked_data[$attribute_id] = db_handler($query, "array_direct", "Get advanced-service of host with its service_enabled status", array($host_id));
 
     NConf_DEBUG::set( $advanced_services, 'DEBUG', "send items");
     $class_id = db_templates("get_id_of_class", "advanced-service");

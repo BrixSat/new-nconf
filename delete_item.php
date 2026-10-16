@@ -43,10 +43,10 @@ if(  ( ( isset($_POST["delete"]) ) AND ($_POST["delete"] == "yes") ) AND
                 if ( count($result) > 0 ){
                     foreach ($result AS $service_ID => $service_name){
                         $query = 'DELETE FROM ConfigItems
-                                    WHERE id_item='.$service_ID
+                                    WHERE id_item=?'
                                  ;
                         if (DB_NO_WRITES != 1) {
-                            $result_delete = db_handler($query, "delete", "Delete entry");
+                            $result_delete = db_handler($query, "delete", "Delete entry", array($service_ID));
                             if ( $result_delete ){
                                 message ($debug, '', "ok");
                                 history_add("removed", "service", $service_name, $id);
@@ -72,12 +72,13 @@ if(  ( ( isset($_POST["delete"]) ) AND ($_POST["delete"] == "yes") ) AND
 
         // Delete entry
         $query = 'DELETE FROM ConfigItems
-                    WHERE id_item='.$id;
+                    WHERE id_item=?';
 
-        $result = db_handler($query, "result", "Delete entry");
+        # "delete" returns the affected row count, or "yes" when nothing matched
+        $result = db_handler($query, "delete", "Delete entry", array($id));
         if ( $result ){
             # increase deleted items
-            if (mysqli_affected_rows($dbh) > 0){
+            if ($result !== "yes"){
                 $deleted_items++;
             }
 
@@ -149,8 +150,8 @@ if(  ( ( isset($_POST["delete"]) ) AND ($_POST["delete"] == "yes") ) AND
         // CHECK IF A USER TRIES TO DELETE AN ADMIN
         if ( !empty($id) ) $nc_id = $id;
         if ($_SESSION["group"] != "admin" AND $class == "contact"){
-            $nc_permission_query = 'SELECT attr_value FROM ConfigValues, ConfigAttrs WHERE fk_id_attr=id_attr AND fk_id_item="'.$nc_id.'" AND attr_name = "nc_permission"';
-            $nc_permission = db_handler($nc_permission_query, "getOne", "Look for nc_permissions of user");
+            $nc_permission_query = 'SELECT attr_value FROM ConfigValues, ConfigAttrs WHERE fk_id_attr=id_attr AND fk_id_item=? AND attr_name = "nc_permission"';
+            $nc_permission = db_handler($nc_permission_query, "getOne", "Look for nc_permissions of user", array((string)$nc_id));
             if ($nc_permission == "admin"){
                 // Disable the submit button and add message
                 include('include/stop_user_modifying_admin_account.php');
@@ -206,10 +207,10 @@ if(  ( ( isset($_POST["delete"]) ) AND ($_POST["delete"] == "yes") ) AND
                             AND id_class = fk_id_class
                             AND config_class = "service"
                             AND ConfigValues.fk_id_item = ItemLinks.fk_id_item
-                            AND fk_item_linked2 = '.$id.'
+                            AND fk_item_linked2 = ?
                             ORDER BY attr_value';
 
-            $result = db_handler($get_srv_query, "result", "get services linked to host");
+            $result = db_handler($get_srv_query, "result", "get services linked to host", array($id));
             # prepare services
             $services = array();
             while($entry = mysqli_fetch_assoc($result)){

@@ -64,8 +64,8 @@ $nav_tree = array("user", "admin");
 foreach ($nav_tree as $nav_priv) {
     echo '<h2 class="content_header">'.ucfirst($nav_priv).' classes:</h2>';
 
-    $query = 'SELECT * FROM ConfigClasses WHERE nav_privs = "'.$nav_priv.'" ORDER BY grouping, ordering ASC, config_class';
-    $result = db_handler($query, "result", "ConfigClasses");
+    $query = 'SELECT * FROM ConfigClasses WHERE nav_privs = ? ORDER BY grouping, ordering ASC, config_class';
+    $result = db_handler($query, "result", "ConfigClasses", array($nav_priv));
 
     if ($result) {
 

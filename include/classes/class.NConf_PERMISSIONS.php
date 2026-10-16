@@ -80,9 +80,9 @@ class NConf_PERMISSIONS{
         $class_id = db_templates("get_classid_of_item", $ID);
         $query = 'SELECT id_class
                     FROM ConfigClasses
-                    WHERE nav_privs = "'.$this->group.'"
-                        AND id_class = "'.$class_id.'"';
-        $user_class_permissions = db_handler($query, "getOne", "Check if user has access to the class of the requested item");
+                    WHERE nav_privs = ?
+                        AND id_class = ?';
+        $user_class_permissions = db_handler($query, "getOne", "Check if user has access to the class of the requested item", array($this->group, $class_id));
         # set authorization
         # special behaviour for multiple ids (then its not allowed to set to true if already FALSE state was set)
         if ( !empty($user_class_permissions) AND $this->requested_id_authorized !== FALSE ){

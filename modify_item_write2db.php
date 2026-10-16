@@ -102,11 +102,12 @@ if ( isset($_POST["modify"]) ){
                 WHERE id_attr = ConfigValues.fk_id_attr
                 AND naming_attr = "yes"
                 AND ConfigValues.fk_id_item = ItemLinks.fk_id_item
-                AND fk_item_linked2 = "'.$host_id.'"
+                AND fk_item_linked2 = ?
                 AND fk_id_class = id_class
                 AND config_class = "service"
-                AND attr_value = "'.escape_string($_POST[$id_naming_attr]).'"
-                AND ConfigValues.fk_id_item <> "'.$id.'"';
+                AND attr_value = ?
+                AND ConfigValues.fk_id_item <> ?';
+        $params = array((string)$host_id, (string)$_POST[$id_naming_attr], (string)$id);
     }elseif($config_class == "nagios-collector" OR $config_class == "nagios-monitor"){
         $query = 'SELECT attr_value, fk_id_item
                         FROM ConfigItems, ConfigValues, ConfigAttrs, ConfigClasses
@@ -118,8 +119,9 @@ if ( isset($_POST["modify"]) ){
                             config_class = "nagios-monitor"
                             OR config_class = "nagios-collector"
                             )
-                        AND attr_value="'.escape_string($_POST[$id_naming_attr]).'"
-                        AND fk_id_item <> '.$id ;
+                        AND attr_value=?
+                        AND fk_id_item <> ?';
+        $params = array((string)$_POST[$id_naming_attr], $id);
     }elseif($config_class == "checkcommand" OR $config_class == "misccommand"){
         $query = 'SELECT attr_value, fk_id_item
                 FROM ConfigItems, ConfigValues, ConfigAttrs, ConfigClasses
@@ -131,16 +133,18 @@ if ( isset($_POST["modify"]) ){
                     config_class = "checkcommand"
                     OR config_class = "misccommand"
                     )
-                AND attr_value="'.escape_string($_POST[$id_naming_attr]).'"
-                AND fk_id_item <> '.$id ;
+                AND attr_value=?
+                AND fk_id_item <> ?';
+        $params = array((string)$_POST[$id_naming_attr], $id);
     }else{
         $query = 'SELECT attr_value, fk_id_item
                 FROM ConfigValues
-                WHERE fk_id_attr='.$id_naming_attr.'
-                AND attr_value = "'.escape_string($_POST[$id_naming_attr]).'"
-                AND fk_id_item <> '.$id ;
+                WHERE fk_id_attr=?
+                AND attr_value = ?
+                AND fk_id_item <> ?';
+        $params = array($id_naming_attr, (string)$_POST[$id_naming_attr], $id);
     }
-    $result = db_handler($query, "result", "does entry already exist");
+    $result = db_handler($query, "result", "does entry already exist", $params);
             
     # Entry exists ?
     if ( mysqli_num_rows($result) ){

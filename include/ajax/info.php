@@ -24,10 +24,10 @@ if ($_GET["type"] == "basic"){
                             WHERE id_attr=fk_id_attr
                             AND id_item=fk_id_item
                             AND ConfigAttrs.visible="yes"
-                            AND id_item='.$_GET["id"].'
+                            AND id_item=?
                             ORDER BY ConfigAttrs.ordering';
 
-    $result = db_handler($query, "result", "get basic entries");
+    $result = db_handler($query, "result", "get basic entries", array($_GET["id"]));
     if ($result){
         while($entry = mysqli_fetch_assoc($result)){
             echo '<tr>';

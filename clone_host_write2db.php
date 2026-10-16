@@ -14,9 +14,9 @@ $query = 'SELECT fk_id_item,attr_value FROM ConfigValues,ConfigAttrs,ConfigClass
                     AND attr_name="host_name"
                     AND id_class=fk_id_class
                     AND config_class="host"
-            AND attr_value = "'.$_POST["hostname"].'"';
+            AND attr_value = ?';
 
-$result = mysqli_query($dbh, $query);
+$result = db_handler($query, "result", "check for existing host name", array($_POST["hostname"]));
 
 # Entry not existing, lets try to clone...
 echo NConf_HTML::page_title('host', 'Clone host');
@@ -95,11 +95,15 @@ if (mysqli_num_rows($result)){
         $ip_id = db_templates("host_attr_id", "address");
 
         $query = 'INSERT INTO ConfigValues (attr_value,fk_id_item,fk_id_attr) 
-                    VALUES ("'.$_POST["hostname"].'",'.$new_host_id.', '.$hostname_id.'),
-                           ("'.$_POST["alias"].'",'.$new_host_id.', '.$alias_id.'),
-                           ("'.$_POST["ip"].'",'.$new_host_id.', '.$ip_id.')';
+                    VALUES (?, ?, ?),
+                           (?, ?, ?),
+                           (?, ?, ?)';
 
-        $result = db_handler($query, "result", "insert data deferring from template");
+        $result = db_handler($query, "result", "insert data deferring from template", array(
+            $_POST["hostname"], $new_host_id, $hostname_id,
+            $_POST["alias"], $new_host_id, $alias_id,
+            $_POST["ip"], $new_host_id, $ip_id,
+        ));
 
         if ($result){
             # add to history
@@ -113,23 +117,24 @@ if (mysqli_num_rows($result)){
         # clone basic data
         NConf_DEBUG::open_group("clone basic data");
         $query = 'INSERT INTO ConfigValues (fk_id_attr,attr_value,fk_id_item)
-                    SELECT id_attr,attr_value,'.$new_host_id.' FROM ConfigAttrs,ConfigValues,ConfigItems
+                    SELECT id_attr,attr_value,? FROM ConfigAttrs,ConfigValues,ConfigItems
                         WHERE id_attr=fk_id_attr
                             AND id_item=fk_id_item
                             AND (attr_name <> "host_name" AND attr_name <> "alias" AND attr_name <> "address")
-                            AND id_item='.$_POST["template_id"].'
+                            AND id_item = ?
                         ORDER BY ordering';
 
-        $result = db_handler($query, "result", "clone basic data");
+        $result = db_handler($query, "result", "clone basic data", array($new_host_id, $_POST["template_id"]));
         if ($result){
             # enter basic data to history
-            $query = 'SELECT id_attr,attr_value,'.$new_host_id.' FROM ConfigAttrs,ConfigValues,ConfigItems
+            # the new id is pasted as an int, not bound: its column is read back by that name ($data["$new_host_id"])
+            $query = 'SELECT id_attr,attr_value,'.(int)$new_host_id.' FROM ConfigAttrs,ConfigValues,ConfigItems
                         WHERE id_attr=fk_id_attr
                             AND id_item=fk_id_item
                             AND (attr_name <> "host_name" AND attr_name <> "alias" AND attr_name <> "address")
-                            AND id_item='.$_POST["template_id"].'
+                            AND id_item = ?
                         ORDER BY ordering';
-            $b_data = db_handler($query, "array", "get basic data");
+            $b_data = db_handler($query, "array", "get basic data", array($_POST["template_id"]));
             foreach($b_data as $data){
                 history_add("added", $data["id_attr"], $data["attr_value"], $data["$new_host_id"]);
             }
@@ -139,21 +144,22 @@ if (mysqli_num_rows($result)){
         # clone items linked as child (except services) e.g. other hosts
         NConf_DEBUG::open_group("clone items linked as child");
         $query = 'INSERT INTO ItemLinks (fk_id_item,fk_item_linked2,fk_id_attr,cust_order)
-                    SELECT fk_id_item,'.$new_host_id.',fk_id_attr,cust_order FROM ItemLinks,ConfigItems,ConfigClasses
+                    SELECT fk_id_item,?,fk_id_attr,cust_order FROM ItemLinks,ConfigItems,ConfigClasses
                         WHERE id_item = fk_id_item
                         AND id_class = fk_id_class
                         AND config_class <> "service"
-                        AND fk_item_linked2 = '.$_POST["template_id"].' ORDER BY fk_id_item';
+                        AND fk_item_linked2 = ? ORDER BY fk_id_item';
 
-        $result = db_handler($query, "result", "cloned data linked as child");
+        $result = db_handler($query, "result", "cloned data linked as child", array($new_host_id, $_POST["template_id"]));
         if ($result){
             # enter linked CHILD items to history
-            $query = 'SELECT fk_id_item,'.$new_host_id.',fk_id_attr FROM ItemLinks,ConfigItems,ConfigClasses
+            # (int), not bound: the column is read back by the id's name ($data["$new_host_id"])
+            $query = 'SELECT fk_id_item,'.(int)$new_host_id.',fk_id_attr FROM ItemLinks,ConfigItems,ConfigClasses
                         WHERE id_item = fk_id_item
                         AND id_class = fk_id_class
                         AND config_class <> "service"
-                        AND fk_item_linked2 = '.$_POST["template_id"].' ORDER BY fk_id_attr,cust_order';
-            $l_child_data = db_handler($query, "array", "get linked CHILD items for history");
+                        AND fk_item_linked2 = ? ORDER BY fk_id_attr,cust_order';
+            $l_child_data = db_handler($query, "array", "get linked CHILD items for history", array($_POST["template_id"]));
             foreach($l_child_data as $data){
                 # ! Attention because the entry is a CHILD, the assigment has to be logged in the history of the parent entry !!!
                 # so "$new_host_id" and "fk_id_item" is simply switched
@@ -171,17 +177,19 @@ if (mysqli_num_rows($result)){
             $attr_parents_id = db_templates("host_attr_id", "parents");
 
             $query = 'INSERT INTO ItemLinks (fk_id_item,fk_item_linked2,fk_id_attr) VALUES ';
+            $parent_params = array();
             $counter = 0;
             foreach ($_POST["parents"] as $parent){
                 if($counter != 0){
                     $query .= ",";
                 }
-                $query .= '('.$new_host_id.','.$parent.','.$attr_parents_id.')';
+                $query .= '(?, ?, ?)';
+                array_push($parent_params, $new_host_id, $parent, $attr_parents_id);
                 $counter++;
                 history_add("assigned", $attr_parents_id, $parent, $new_host_id, "resolve_assignment");
             }
 
-            $result = db_handler($query, "insert", "insert data deferring parent hosts");
+            $result = db_handler($query, "insert", "insert data deferring parent hosts", $parent_params);
         }
 
 #############
@@ -191,32 +199,36 @@ if (mysqli_num_rows($result)){
 
             # clone all items linked
             $query = 'INSERT INTO ItemLinks (fk_id_item,fk_item_linked2,fk_id_attr,cust_order)
-                        SELECT '.$new_host_id.',fk_item_linked2,fk_id_attr,cust_order
-                            FROM ItemLinks WHERE fk_id_item = '.$_POST["template_id"].'
+                        SELECT ?,fk_item_linked2,fk_id_attr,cust_order
+                            FROM ItemLinks WHERE fk_id_item = ?
                             ORDER BY fk_item_linked2';
-            $history_query = 'SELECT '.$new_host_id.',fk_item_linked2,fk_id_attr
-                            FROM ItemLinks WHERE fk_id_item = '.$_POST["template_id"].'
+            $query_params = array($new_host_id, $_POST["template_id"]);
+            # (int), not bound: the column is read back by the id's name ($data["$new_host_id"])
+            $history_query = 'SELECT '.(int)$new_host_id.',fk_item_linked2,fk_id_attr
+                            FROM ItemLinks WHERE fk_id_item = ?
                             ORDER BY fk_item_linked2';
         }else{
 
             # clone items linked (except for parent hosts)
             $query = 'INSERT INTO ItemLinks (fk_id_item,fk_item_linked2,fk_id_attr,cust_order)
-                        SELECT '.$new_host_id.',fk_item_linked2,fk_id_attr,cust_order
-                            FROM ItemLinks WHERE fk_id_item = '.$_POST["template_id"].'
+                        SELECT ?,fk_item_linked2,fk_id_attr,cust_order
+                            FROM ItemLinks WHERE fk_id_item = ?
                                 AND ((SELECT attr_name FROM ConfigAttrs WHERE id_attr=fk_id_attr) <> "parents"
                                     AND (SELECT config_class FROM ConfigItems,ConfigClasses WHERE id_item=fk_item_linked2 AND id_class=fk_id_class) <> "host")
                                 ORDER BY fk_item_linked2';
-            $history_query = 'SELECT '.$new_host_id.',fk_item_linked2,fk_id_attr
-                            FROM ItemLinks WHERE fk_id_item = '.$_POST["template_id"].'
+            $query_params = array($new_host_id, $_POST["template_id"]);
+            # (int), not bound: the column is read back by the id's name ($data["$new_host_id"])
+            $history_query = 'SELECT '.(int)$new_host_id.',fk_item_linked2,fk_id_attr
+                            FROM ItemLinks WHERE fk_id_item = ?
                                 AND ((SELECT attr_name FROM ConfigAttrs WHERE id_attr=fk_id_attr) <> "parents"
                                     AND (SELECT config_class FROM ConfigItems,ConfigClasses WHERE id_item=fk_item_linked2 AND id_class=fk_id_class) <> "host")
                                 ORDER BY fk_id_attr,cust_order';
         }
 
-        $result = db_handler($query, "result", "cloned linked data");
+        $result = db_handler($query, "result", "cloned linked data", $query_params);
         if ($result){
             # enter linked items to history
-            $l_data = db_handler($history_query, "array", "get linked items for history");
+            $l_data = db_handler($history_query, "array", "get linked items for history", array($_POST["template_id"]));
             foreach($l_data as $data){
                 history_add("assigned", $data["fk_id_attr"], $data["fk_item_linked2"], $data["$new_host_id"], "resolve_assignment");
             }
@@ -230,8 +242,8 @@ if (mysqli_num_rows($result)){
                         WHERE id_item = fk_id_item
                         AND id_class = fk_id_class
                         AND config_class = "service"
-                        AND fk_item_linked2 = '.$_POST["template_id"].' ORDER BY fk_id_item';
-        $services = db_handler($query, "array", "fetch list of services");
+                        AND fk_item_linked2 = ? ORDER BY fk_id_item';
+        $services = db_handler($query, "array", "fetch list of services", array($_POST["template_id"]));
 
         # iterate through all services
         foreach ($services as $service_tpl){
@@ -243,8 +255,8 @@ if (mysqli_num_rows($result)){
 
             # link new service to cloned host
             $query = 'INSERT INTO ItemLinks (fk_id_item,fk_item_linked2,fk_id_attr) 
-                        VALUES ('.$new_service_id.','.$new_host_id.','.$service_tpl["fk_id_attr"].')';
-            $result = db_handler($query, "insert", "link new service to cloned host");
+                        VALUES (?, ?, ?)';
+            $result = db_handler($query, "insert", "link new service to cloned host", array($new_service_id, $new_host_id, $service_tpl["fk_id_attr"]));
             if ($result){
                 message ($debug, 'Successfully linked service '.$new_service_id.' to host '.$new_host_id);
             }else{
@@ -253,13 +265,13 @@ if (mysqli_num_rows($result)){
 
             # clone basic data of original service onto new service
             $query = 'INSERT INTO ConfigValues (fk_id_attr,attr_value,fk_id_item)
-                        SELECT id_attr,attr_value,'.$new_service_id.' FROM ConfigAttrs,ConfigValues,ConfigItems
+                        SELECT id_attr,attr_value,? FROM ConfigAttrs,ConfigValues,ConfigItems
                             WHERE id_attr=fk_id_attr
                                 AND id_item=fk_id_item
-                                AND id_item='.$service_tpl["fk_id_item"].'
+                                AND id_item = ?
                             ORDER BY ordering';
 
-            $result = db_handler($query, "insert", "clone basic data of original service onto new service");
+            $result = db_handler($query, "insert", "clone basic data of original service onto new service", array($new_service_id, $service_tpl["fk_id_item"]));
 
             if ($result){
 
@@ -275,10 +287,10 @@ if (mysqli_num_rows($result)){
                 $query = 'SELECT id_attr,attr_value FROM ConfigAttrs,ConfigValues,ConfigItems
                                 WHERE id_attr=fk_id_attr
                                     AND id_item=fk_id_item
-                                    AND id_item='.$service_tpl["fk_id_item"].'
+                                    AND id_item = ?
                                     AND naming_attr = "no"
                                 ORDER BY ordering';
-                $basic_entries = db_handler($query, "array", "for history: get basic data");
+                $basic_entries = db_handler($query, "array", "for history: get basic data", array($service_tpl["fk_id_item"]));
                 foreach ($basic_entries AS $entry){
                     history_add("added", $entry["id_attr"], $entry["attr_value"], $new_service_id);
                 }
@@ -287,19 +299,19 @@ if (mysqli_num_rows($result)){
 
             # clone items linked to original service onto new service
             $query = 'INSERT INTO ItemLinks (fk_id_item,fk_item_linked2,fk_id_attr,cust_order)
-                        SELECT '.$new_service_id.',fk_item_linked2,fk_id_attr,cust_order FROM ItemLinks 
-                            WHERE fk_id_item='.$service_tpl["fk_id_item"].' 
-                                AND fk_item_linked2 <> '.$_POST["template_id"].'
+                        SELECT ?,fk_item_linked2,fk_id_attr,cust_order FROM ItemLinks 
+                            WHERE fk_id_item = ? 
+                                AND fk_item_linked2 <> ?
                             ORDER BY fk_item_linked2';
 
-            $result = db_handler($query, "insert", "clone items linked to original service onto new service");
+            $result = db_handler($query, "insert", "clone items linked to original service onto new service", array($new_service_id, $service_tpl["fk_id_item"], $_POST["template_id"]));
 
             # HISTORY add :linked items
             $query = 'SELECT fk_item_linked2,fk_id_attr,cust_order FROM ItemLinks
-                            WHERE fk_id_item='.$service_tpl["fk_id_item"].'
-                                AND fk_item_linked2 <> '.$_POST["template_id"].'
+                            WHERE fk_id_item = ?
+                                AND fk_item_linked2 <> ?
                             ORDER BY fk_item_linked2';
-            $linked_items = db_handler($query, "array", "for history: get linked items");
+            $linked_items = db_handler($query, "array", "for history: get linked items", array($service_tpl["fk_id_item"], $_POST["template_id"]));
             foreach ($linked_items AS $entry){
                 history_add("assigned", $entry["fk_id_attr"], $entry["fk_item_linked2"], $new_service_id, "resolve_assignment");
             }
@@ -309,15 +321,15 @@ if (mysqli_num_rows($result)){
 
             # clone items linked as child of original service onto new service
             $query = 'INSERT INTO ItemLinks (fk_id_item,fk_item_linked2,fk_id_attr,cust_order)
-                        SELECT fk_id_item,'.$new_service_id.',fk_id_attr,cust_order FROM ItemLinks
-                            WHERE fk_item_linked2 = '.$service_tpl["fk_id_item"].' ORDER BY fk_id_item';
+                        SELECT fk_id_item,?,fk_id_attr,cust_order FROM ItemLinks
+                            WHERE fk_item_linked2 = ? ORDER BY fk_id_item';
 
-            $result = db_handler($query, "insert", "clone items linked as child of original service onto new service");
+            $result = db_handler($query, "insert", "clone items linked as child of original service onto new service", array($new_service_id, $service_tpl["fk_id_item"]));
 
             # HISTORY add :linked as child items
             $query = 'SELECT fk_id_item,fk_id_attr,cust_order FROM ItemLinks
-                            WHERE fk_item_linked2 = '.$service_tpl["fk_id_item"].' ORDER BY fk_id_item';
-            $linkedAsChild_items = db_handler($query, "array", "for history: get linked as child items");
+                            WHERE fk_item_linked2 = ? ORDER BY fk_id_item';
+            $linkedAsChild_items = db_handler($query, "array", "for history: get linked as child items", array($service_tpl["fk_id_item"]));
             foreach ($linkedAsChild_items AS $entry){
                 history_add("assigned", $entry["fk_id_attr"], $new_service_id, $entry["fk_id_item"], "resolve_assignment");
             }

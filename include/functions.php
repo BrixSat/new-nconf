@@ -122,7 +122,7 @@ function set_attr_order($attr_id, $attr_order, $attr_class, $old_order = 'new'){
 
     # loop trhu attrs
     do {
-        $items_to_change = db_handler('SELECT id_attr, ordering, fk_id_class FROM ConfigAttrs WHERE fk_id_class="'.$attr_class.'" AND id_attr <> "'.$attr_id.'" AND ordering = "'.$attr_order.'"', "array", "GET items with identic order");
+        $items_to_change = db_handler('SELECT id_attr, ordering, fk_id_class FROM ConfigAttrs WHERE fk_id_class = ? AND id_attr <> ? AND ordering = ?', "array", "GET items with identic order", array($attr_class, $attr_id, $attr_order));
 
         # Debug
         //var_dump($items_to_change);
@@ -139,8 +139,8 @@ function set_attr_order($attr_id, $attr_order, $attr_class, $old_order = 'new'){
                 $attr_order--;
             }
             # change order
-            $query = 'UPDATE ConfigAttrs SET ordering='.$attr_order.' WHERE id_attr = '.$attr_id.' AND fk_id_class='.$attr_class;
-            db_handler($query, "insert", "UPDATE: increased ordering of an other item with same order number");
+            $query = 'UPDATE ConfigAttrs SET ordering = ? WHERE id_attr = ? AND fk_id_class = ?';
+            db_handler($query, "insert", "UPDATE: increased ordering of an other item with same order number", array($attr_order, $attr_id, $attr_class));
 
         }elseif ( !empty($items_to_change) AND ( count($items_to_change) > 1) ){
             # dublicates ?
@@ -160,28 +160,28 @@ function set_attr_order($attr_id, $attr_order, $attr_class, $old_order = 'new'){
 
 function attr_order($id, $mode){
     // Get old order and class
-    $result_assoc = db_handler("SELECT ordering, fk_id_class FROM ConfigAttrs WHERE id_attr=$id", "assoc", "GET order and class of attr");
+    $result_assoc = db_handler("SELECT ordering, fk_id_class FROM ConfigAttrs WHERE id_attr = ?", "assoc", "GET order and class of attr", array($id));
     $old_order  = $result_assoc["ordering"];
     $attr_class = $result_assoc["fk_id_class"];
 
     // Select next attr to change with
     // Make query right to the mode up/down
     if ($mode == "up") {
-        $query = 'SELECT id_attr, ordering AS dest_order FROM ConfigAttrs WHERE ordering < '.$old_order.' AND fk_id_class='.$attr_class.' ORDER BY ordering DESC LIMIT 1';
+        $query = 'SELECT id_attr, ordering AS dest_order FROM ConfigAttrs WHERE ordering < ? AND fk_id_class = ? ORDER BY ordering DESC LIMIT 1';
     }elseif ($mode == "down"){
-        $query = 'SELECT id_attr, ordering AS dest_order FROM ConfigAttrs WHERE ordering > '.$old_order.' AND fk_id_class='.$attr_class.' ORDER BY ordering ASC LIMIT 1';
+        $query = 'SELECT id_attr, ordering AS dest_order FROM ConfigAttrs WHERE ordering > ? AND fk_id_class = ? ORDER BY ordering ASC LIMIT 1';
     }
-    $result_assoc = db_handler($query, "assoc", "GET new order (and the attr_id of destination)");
+    $result_assoc = db_handler($query, "assoc", "GET new order (and the attr_id of destination)", array($old_order, $attr_class));
       $dest_attr  = $result_assoc["id_attr"];
       $dest_order = $result_assoc["dest_order"];
 
     // IF there is an attribute to change position
     if ($result_assoc){
         // change attributes order
-        $query = 'UPDATE ConfigAttrs SET ordering='.$old_order.' WHERE ordering = '.$dest_order.' AND fk_id_class='.$attr_class;
-        db_handler($query, "insert", "UPDATE: move all attributes with destination ordering");
-        $query = 'UPDATE ConfigAttrs SET ordering='.$dest_order.' WHERE id_attr = '.$id.' AND fk_id_class='.$attr_class;
-        db_handler($query, "insert", "UPDATE: move selected attribute");
+        $query = 'UPDATE ConfigAttrs SET ordering = ? WHERE ordering = ? AND fk_id_class = ?';
+        db_handler($query, "insert", "UPDATE: move all attributes with destination ordering", array($old_order, $dest_order, $attr_class));
+        $query = 'UPDATE ConfigAttrs SET ordering = ? WHERE id_attr = ? AND fk_id_class = ?';
+        db_handler($query, "insert", "UPDATE: move selected attribute", array($dest_order, $id, $attr_class));
 
     }
 
@@ -189,7 +189,7 @@ function attr_order($id, $mode){
 
 function class_order($id, $mode){
     // Get old order and class
-    $result_assoc  = db_handler("SELECT ordering, grouping, nav_privs FROM ConfigClasses WHERE id_class=$id", "assoc", "GET order and grouping of class");
+    $result_assoc  = db_handler("SELECT ordering, grouping, nav_privs FROM ConfigClasses WHERE id_class = ?", "assoc", "GET order and grouping of class", array($id));
       $old_order  = $result_assoc["ordering"];
       $group  = $result_assoc["grouping"];
       $nav_priv  = $result_assoc["nav_privs"];
@@ -197,21 +197,21 @@ function class_order($id, $mode){
     // Select next class to change with
     // Make query right to the mode up/down
     if ($mode == "up") {
-        $query = 'SELECT id_class, ordering AS dest_order FROM ConfigClasses WHERE ordering < '.$old_order.' AND grouping="'.$group.'" AND nav_privs="'.$nav_priv.'" ORDER BY ordering DESC LIMIT 1';
+        $query = 'SELECT id_class, ordering AS dest_order FROM ConfigClasses WHERE ordering < ? AND grouping = ? AND nav_privs = ? ORDER BY ordering DESC LIMIT 1';
     }elseif ($mode == "down"){
-        $query = 'SELECT id_class, ordering AS dest_order FROM ConfigClasses WHERE ordering > '.$old_order.' AND grouping="'.$group.'"AND nav_privs="'.$nav_priv.'" ORDER BY ordering ASC LIMIT 1';
+        $query = 'SELECT id_class, ordering AS dest_order FROM ConfigClasses WHERE ordering > ? AND grouping = ? AND nav_privs = ? ORDER BY ordering ASC LIMIT 1';
     }
-    $result_assoc = db_handler($query, "assoc", "GET new order (and the id_class of destination)");
+    $result_assoc = db_handler($query, "assoc", "GET new order (and the id_class of destination)", array($old_order, $group, $nav_priv));
       $dest_id  = $result_assoc["id_class"];
       $dest_order = $result_assoc["dest_order"];
 
     // IF there is an class to change position
     if ($result_assoc){
         // change class order
-        $query = 'UPDATE ConfigClasses SET ordering='.$old_order.' WHERE id_class='.$dest_id;
-        db_handler($query, "insert", "UPDATE: move other class with destination ordering");
-        $query = 'UPDATE ConfigClasses SET ordering='.$dest_order.' WHERE id_class = '.$id;
-        db_handler($query, "insert", "UPDATE: move selected class");
+        $query = 'UPDATE ConfigClasses SET ordering = ? WHERE id_class = ?';
+        db_handler($query, "insert", "UPDATE: move other class with destination ordering", array($old_order, $dest_id));
+        $query = 'UPDATE ConfigClasses SET ordering = ? WHERE id_class = ?';
+        db_handler($query, "insert", "UPDATE: move selected class", array($dest_order, $id));
 
     }
 
@@ -323,9 +323,13 @@ function history_add($action, $name, $value, $fk_id_item = 'NULL', $feature = ''
     }
 
     # Insert into History
-    $query = "INSERT INTO `History` (user_str, action, attr_name, attr_value, fk_id_item) VALUES ( '$user', '$action', '$name', '$value', $fk_id_item)";
+    # 'NULL' (the default) or an empty id: the entry is not linked to an item
+    if ( $fk_id_item === 'NULL' OR $fk_id_item === '' OR $fk_id_item === NULL ){
+        $fk_id_item = NULL;
+    }
+    $query = "INSERT INTO `History` (user_str, action, attr_name, attr_value, fk_id_item) VALUES (?, ?, ?, ?, ?)";
 
-    db_handler($query, 'affected', 'Add to History');
+    db_handler($query, 'affected', 'Add to History', array($user, $action, $name, $value, $fk_id_item));
 }
 
 
@@ -340,10 +344,8 @@ function relaod_nconf_db_connection(){
 
 
 # NEW DB HANDLER templates
+# $value, $search and $filter are bound as query parameters; pass them unescaped
 function db_templates($template, $value = '', $search = '', $filter = '', $output_type = ''){
-    $value  = escape_string($value);
-    $search = escape_string($search);
-    $filter = escape_string($filter);
     /*
     if ( empty($value) ){
         message ('DEBUG', "no value for lookup in db_template");
@@ -357,32 +359,32 @@ function db_templates($template, $value = '', $search = '', $filter = '', $outpu
                         FROM ConfigValues, ConfigAttrs
                         WHERE fk_id_attr=id_attr
                         AND naming_attr="yes"
-                        AND fk_id_item="'.$value.'"';
-            $output = db_handler($query, 'getOne', "select naming_attr name");
+                        AND fk_id_item = ?';
+            $output = db_handler($query, 'getOne', "select naming_attr name", array($value));
             break;
         case "get_naming_attr_from_class":
             $query = 'SELECT id_attr
                         FROM ConfigAttrs,ConfigClasses
                         WHERE naming_attr="yes"
                             AND id_class=fk_id_class
-                            AND config_class="'.$value.'"';
-            $output = db_handler($query, "getOne", "naming_attr ID of $value:");
+                            AND config_class = ?';
+            $output = db_handler($query, "getOne", "naming_attr ID of $value:", array($value));
             break;
         case "get_id_of_item":
             $query = 'SELECT fk_id_item
                         FROM ConfigValues, ConfigAttrs
                         WHERE fk_id_attr = id_attr
-                            AND id_attr = "'.$value.'"
-                            AND attr_value = "'.$search.'"';
-            $output = db_handler($query, "getOne", "item ID of $search:");
+                            AND id_attr = ?
+                            AND attr_value = ?';
+            $output = db_handler($query, "getOne", "item ID of $search:", array($value, $search));
             break;
         case "get_id_of_class":
-            $query = 'SELECT id_class FROM ConfigClasses WHERE config_class = "'.$value.'"';
-            $output = db_handler($query, "getOne", "class id");
+            $query = 'SELECT id_class FROM ConfigClasses WHERE config_class = ?';
+            $output = db_handler($query, "getOne", "class id", array($value));
             break;
         case "get_classid_of_item":
-            $query = 'SELECT fk_id_class FROM ConfigItems WHERE id_item = "'.$value.'"';
-            $output = db_handler($query, "getOne", "Get class_id of item");
+            $query = 'SELECT fk_id_class FROM ConfigItems WHERE id_item = ?';
+            $output = db_handler($query, "getOne", "Get class_id of item", array($value));
             break;
         case "get_id_of_hostname_service":
             $query = 'SELECT id_item,attr_value AS servicename,
@@ -396,45 +398,46 @@ function db_templates($template, $value = '', $search = '', $filter = '', $outpu
                     FROM ConfigItems,ConfigValues,ConfigAttrs
                     WHERE id_item=fk_id_item
                         AND id_attr=fk_id_attr
-                        AND id_attr="'.$value.'"
-                    HAVING CONCAT(hostname,":",servicename) LIKE "'.$search.'"';
-            $output = db_handler($query, "getOne", "item ID of $search:");
+                        AND id_attr = ?
+                    HAVING CONCAT(hostname,":",servicename) LIKE ?';
+            $output = db_handler($query, "getOne", "item ID of $search:", array($value, $search));
             break;
         case "lookup_ConfigClasses":
-            $query = 'SELECT '.$value.'
+            # $value is a column name: it cannot be bound, so it must be a plain identifier
+            $query = 'SELECT '.\NConf\Db\Sql::identifier($value).'
                         FROM ConfigClasses
-                        WHERE id_class="'.$search.'"';
-            $output = db_handler($query, 'getOne', 'Lookup ConfigClasses: select "'.$value.'" of id_attr="'.$search.'"');
+                        WHERE id_class = ?';
+            $output = db_handler($query, 'getOne', 'Lookup ConfigClasses: select "'.$value.'" of id_attr="'.$search.'"', array($search));
             break;
         case "attr_name":
             $query = 'SELECT attr_name
                         FROM ConfigAttrs
-                        WHERE id_attr="'.$value.'"';
-            $output = db_handler($query, 'getOne', "select attr name");
+                        WHERE id_attr = ?';
+            $output = db_handler($query, 'getOne', "select attr name", array($value));
             break;
         case "attr_datatype":
             $query = 'SELECT datatype FROM `ConfigAttrs`
-                        WHERE id_attr = "'.$value.'"';
-            $output = db_handler($query, "getOne", "Lookup datatype");
+                        WHERE id_attr = ?';
+            $output = db_handler($query, "getOne", "Lookup datatype", array($value));
             break;
         case "friendly_attr_name":
             $query = 'SELECT friendly_name
                         FROM ConfigAttrs
-                        WHERE id_attr="'.$value.'"';
-            $output = db_handler($query, 'getOne', "select attr name");
+                        WHERE id_attr = ?';
+            $output = db_handler($query, 'getOne', "select attr name", array($value));
             break;
         case "class_name":
             $query = 'SELECT config_class
                         FROM ConfigClasses,ConfigItems
                         WHERE id_class = fk_id_class
-                        AND id_item = "'.$value.'"';
-            $output = db_handler($query, 'getOne', "select class name");
+                        AND id_item = ?';
+            $output = db_handler($query, 'getOne', "select class name", array($value));
             break;
         case "class_friendly_name":
             $query = 'SELECT friendly_name
                         FROM ConfigClasses
-                        WHERE config_class = "'.$value.'"';
-            $output = db_handler($query, 'getOne', "select class name");
+                        WHERE config_class = ?';
+            $output = db_handler($query, 'getOne', "select class name", array($value));
             break;
         case "get_value":
             $query = 'SELECT attr_value
@@ -442,11 +445,11 @@ function db_templates($template, $value = '', $search = '', $filter = '', $outpu
                         WHERE id_attr=fk_id_attr
                         AND id_item=fk_id_item
                         AND ConfigAttrs.visible="yes" 
-                        AND id_item="'.$value.'"
-                        AND attr_name = "'.$search.'"
+                        AND id_item = ?
+                        AND attr_name = ?
                         ORDER BY ConfigAttrs.ordering';
 
-            $output = db_handler($query, "getOne", "get $search of item with id $value");
+            $output = db_handler($query, "getOne", "get $search of item with id $value", array($value, $search));
             break;
 
         case "get_linked_item":
@@ -461,13 +464,15 @@ function db_templates($template, $value = '', $search = '', $filter = '', $outpu
                 . ' FROM ConfigAttrs'
                 . ' WHERE id_attr = ConfigValues.fk_id_attr'
                 . ' ) = "yes"'
-                . ' AND ItemLinks.fk_id_item ="'.$value.'"';
+                . ' AND ItemLinks.fk_id_item = ?';
+                $params = array($value);
                 if ( !empty($search) ){
-                    $query .= ' AND attr_name = "'.$search.'"';
+                    $query .= ' AND attr_name = ?';
+                    $params[] = $search;
                 }
                 $query .= ' ORDER BY ConfigAttrs.friendly_name DESC , attr_value';
             if ( empty($output_type) ) $output_type = 'array';
-            $output = db_handler($query, $output_type, "get linked $search of item with id $value");
+            $output = db_handler($query, $output_type, "get linked $search of item with id $value", $params);
             break;
         # with link as child attrs: (contacts of contactgroup)
         case "get_linked_item_2":
@@ -482,10 +487,10 @@ function db_templates($template, $value = '', $search = '', $filter = '', $outpu
                 . ' FROM ConfigAttrs'
                 . ' WHERE id_attr = ConfigValues.fk_id_attr'
                 . ' ) = "yes"'
-                . ' AND fk_item_linked2 ="'.$value.'"'
-                . ' AND attr_name = "'.$search.'"'
+                . ' AND fk_item_linked2 = ?'
+                . ' AND attr_name = ?'
                 . ' ORDER BY ConfigAttrs.friendly_name DESC , attr_value';
-            $output = db_handler($query, "array", "get linked $search of item with id $value");
+            $output = db_handler($query, "array", "get linked $search of item with id $value", array($value, $search));
             break;
 
 /*
@@ -529,33 +534,33 @@ something for later use... other query for link_as_child attrs....
             $query = 'SELECT fk_id_item'
                 . ' FROM ConfigValues, ConfigAttrs, ConfigClasses'
                 . ' WHERE fk_id_attr=id_attr'
-                . ' AND attr_value="'.$value.'"'
+                . ' AND attr_value = ?'
                 . ' AND id_class=fk_id_class'
                 . ' AND config_class="host"';
-            $output = db_handler($query, 'getOne', "get_id_from_hostname");
+            $output = db_handler($query, 'getOne', "get_id_from_hostname", array($value));
             break;
         case "get_attr_id":
             $query = 'SELECT id_attr FROM ConfigAttrs,ConfigClasses
-                        WHERE attr_name="'.$search.'"
+                        WHERE attr_name = ?
                         AND id_class=fk_id_class
-                        AND config_class="'.$value.'"';
-            $output = db_handler($query, 'getOne', "Get attr_id where attr_name = $search and class = $value");
+                        AND config_class = ?';
+            $output = db_handler($query, 'getOne', "Get attr_id where attr_name = $search and class = $value", array($search, $value));
             break;
         case "host_attr_id":
             $query = 'SELECT id_attr FROM ConfigAttrs,ConfigClasses
-                        WHERE attr_name="'.$value.'"
+                        WHERE attr_name = ?
                         AND id_class=fk_id_class
                         AND config_class="host"';
-            $output = db_handler($query, 'getOne', "select attr id");
+            $output = db_handler($query, 'getOne', "select attr id", array($value));
             break;
         case "get_attributes_from_class":
             $query = 'SELECT ConfigAttrs.friendly_name, ConfigAttrs.ordering, id_attr, attr_name, datatype, mandatory, naming_attr
                     FROM ConfigAttrs,ConfigClasses
                         WHERE id_class=fk_id_class
-                        AND config_class="'.$value.'"
+                        AND config_class = ?
                         AND ConfigAttrs.visible = "yes"
                         ORDER BY ConfigAttrs.ordering';
-            $output = db_handler($query, 'array', "select all attributes of a class");
+            $output = db_handler($query, 'array', "select all attributes of a class", array($value));
             break;
         case "get_bidirectional":
             # this is a temporary template, which we could use later for ordering
@@ -575,7 +580,7 @@ something for later use... other query for link_as_child attrs....
                                  ConfigAttrs.description
                           FROM ConfigAttrs,ConfigClasses
                           WHERE id_class=fk_id_class
-                              AND ConfigClasses.config_class="'.$value.'"
+                              AND ConfigClasses.config_class = ?
                               AND ConfigAttrs.visible="yes"';
             $query .= ' UNION ';
             $query .= 'SELECT ConfigAttrs.id_attr,
@@ -592,11 +597,11 @@ something for later use... other query for link_as_child attrs....
                                  ConfigAttrs.description
                           FROM ConfigAttrs,ConfigClasses
                           WHERE id_class=fk_show_class_items 
-                              AND ConfigClasses.config_class="'.$value.'"
+                              AND ConfigClasses.config_class = ?
                               AND ConfigAttrs.visible="yes"
                               AND ConfigAttrs.link_bidirectional="yes"
                           ORDER BY ordering';
-            $output = db_handler($query, 'result', "select all attributes (UNION bidirectional attrs)");
+            $output = db_handler($query, 'result', "select all attributes (UNION bidirectional attrs)", array($value, $value));
             break;
         case "get_attributes_with_bidirectional":
             # this is the new template to get ALL attributes, including the bidirectional ones
@@ -619,17 +624,21 @@ something for later use... other query for link_as_child attrs....
                                  ConfigAttrs.link_bidirectional
                           FROM ConfigAttrs,ConfigClasses
                           WHERE id_class=fk_id_class
-                              AND ConfigClasses.config_class="'.$value.'"
+                              AND ConfigClasses.config_class = ?
                               AND ConfigAttrs.visible="yes"';
+                $params = array($value);
                 # if search is given, limit result to selected attr (needed on multy modify)
-                if ( !empty($search) ) $query .= ' AND ConfigAttrs.attr_name="'.$search.'"';
+                if ( !empty($search) ){
+                    $query .= ' AND ConfigAttrs.attr_name = ?';
+                    $params[] = $search;
+                }
                 $query .= ' ORDER BY ordering';
             if ( !empty($search) ){
                 # got one attribute
-                $output = db_handler($query, 'array', 'get details of attribute (part 1): "'.$search.'"');
+                $output = db_handler($query, 'array', 'get details of attribute (part 1): "'.$search.'"', $params);
             }else{
                 # got all attributes
-                $output = db_handler($query, 'array', 'select all attributes (part 1)');
+                $output = db_handler($query, 'array', 'select all attributes (part 1)', $params);
             }
 
             // if class=service put the check_params to last position
@@ -665,19 +674,23 @@ something for later use... other query for link_as_child attrs....
                                  ConfigAttrs.link_bidirectional
                           FROM ConfigAttrs,ConfigClasses
                           WHERE id_class=fk_show_class_items 
-                              AND ConfigClasses.config_class="'.$value.'"
+                              AND ConfigClasses.config_class = ?
                               AND ConfigAttrs.visible="yes"
                               AND ConfigAttrs.link_bidirectional="yes"';
+                $params = array($value);
                 # if search is given, limit result to selected attr (needed on multy modify)
-                if ( !empty($search) ) $query .= ' AND ConfigAttrs.attr_name="'.$search.'"';
+                if ( !empty($search) ){
+                    $query .= ' AND ConfigAttrs.attr_name = ?';
+                    $params[] = $search;
+                }
                 $query .= ' ORDER BY ordering';
 
             if ( !empty($search) ){
                 # got one attribute
-                $output_bidirectional = db_handler($query, 'array', 'get details of attribute bidirectional (part 2): "'.$search.'"');
+                $output_bidirectional = db_handler($query, 'array', 'get details of attribute bidirectional (part 2): "'.$search.'"', $params);
             }else{
                 # got all attributes
-                $output_bidirectional = db_handler($query, 'array', 'select all attributes bidirectional (part 2)');
+                $output_bidirectional = db_handler($query, 'array', 'select all attributes bidirectional (part 2)', $params);
             }
 
 
@@ -702,8 +715,8 @@ something for later use... other query for link_as_child attrs....
                         WHERE id_item = fk_item_linked2
                         AND fk_id_class = id_class
                         AND config_class = "host"
-                        AND fk_id_item = "'.$value.'"';
-            $output = db_handler($query, 'getOne', "select host_ID of service");
+                        AND fk_id_item = ?';
+            $output = db_handler($query, 'getOne', "select host_ID of service", array($value));
             break;
 
         case "get_services_from_host_id":
@@ -713,11 +726,11 @@ something for later use... other query for link_as_child attrs....
                 WHERE id_attr = ConfigValues.fk_id_attr
                 AND naming_attr = "yes"
                 AND ConfigValues.fk_id_item = ItemLinks.fk_id_item
-                AND fk_item_linked2 = "'.$value.'"
+                AND fk_item_linked2 = ?
                 AND fk_id_class = id_class
-                AND config_class = "'.$search.'"
+                AND config_class = ?
                 ORDER BY attr_value';
-            $output = db_handler($query, 'array_2fieldsTOassoc', 'Get '.$search.'s from Item ID "'.$value.'"');
+            $output = db_handler($query, 'array_2fieldsTOassoc', 'Get '.$search.'s from Item ID "'.$value.'"', array($value, $search));
             break;
 
 
@@ -735,14 +748,18 @@ something for later use... other query for link_as_child attrs....
             $query = 'SELECT  ConfigAttrs.id_attr, ConfigAttrs.friendly_name
                     FROM ConfigAttrs,ConfigClasses
                     WHERE id_class=fk_id_class
-                    AND ConfigClasses.config_class="'.$value.'"
+                    AND ConfigClasses.config_class = ?
                     AND ConfigAttrs.visible="yes"
                     AND ConfigAttrs.mandatory="yes" ';
+            $params = array($value);
             # multi modify only needs feedback about one(the selected attribute)
-            if ( !empty($search) ) $query .= 'AND ConfigAttrs.id_attr = "'.$search.'"';
+            if ( !empty($search) ){
+                $query .= 'AND ConfigAttrs.id_attr = ? ';
+                $params[] = $search;
+            }
             $query .= 'ORDER BY ConfigAttrs.id_attr';
 
-            $output = db_handler($query, 'array_2fieldsTOassoc', "get mandatory fields");
+            $output = db_handler($query, 'array_2fieldsTOassoc', "get mandatory fields", $params);
             break;
 
 
@@ -751,7 +768,7 @@ something for later use... other query for link_as_child attrs....
                 FROM ItemLinks,ConfigAttrs,ConfigClasses
                 WHERE id_attr=fk_id_attr
                 AND id_class=fk_id_class
-                AND fk_id_item="'.$value.'"
+                AND fk_id_item = ?
                 HAVING ((SELECT config_class FROM ConfigItems,ConfigClasses
                         WHERE id_class=fk_id_class
                             AND id_item=item_id) = "timeperiod"
@@ -760,7 +777,7 @@ something for later use... other query for link_as_child attrs....
                             AND id_item=item_id) = "contactgroup")
                     ORDER BY item_id
                     ';
-            $output = db_handler($query, 'result', "inheritance");
+            $output = db_handler($query, 'result', "inheritance", array($value));
             break;
 
 
@@ -780,7 +797,7 @@ something for later use... other query for link_as_child attrs....
                             AND ConfigAttrs.visible="yes"
                             AND fk_id_class=id_class
                             AND (SELECT naming_attr FROM ConfigAttrs WHERE id_attr=ConfigValues.fk_id_attr)="yes"
-                            AND ItemLinks.fk_item_linked2="'.$value.'"';
+                            AND ItemLinks.fk_item_linked2 = ? ';
                 if ( !empty($search) AND $search == "link_as_child"){
                     $query .= 'AND ConfigAttrs.link_as_child="yes"';
                 }elseif ( !empty($search) AND $search == "link_bidirectional"){
@@ -790,7 +807,7 @@ something for later use... other query for link_as_child attrs....
             $query .= ' ORDER BY friendly_name DESC,attr_value';
             # look for output selection
             if ( empty($output_type) ) $output_type = 'result';
-            $output = db_handler($query, $output_type, "get entries linked as child");
+            $output = db_handler($query, $output_type, "get entries linked as child", array($value));
             break;
 
 
@@ -819,15 +836,16 @@ something for later use... other query for link_as_child attrs....
                     AND id_class=fk_id_class 
                     AND config_class="checkcommand"
                     AND naming_attr="yes"'; 
-            if ( empty($search) ) $search = 'service_name';
+            # $search is an ORDER BY column: only the two names the query selects are allowed
+            if ( !in_array($search, array('service_name', 'check_name'), TRUE) ) $search = 'service_name';
             if ( !empty($value) ){
                 // handle search for 1 service
-                $query .= ' AND fk_id_item = "'.$value.'"';
-                $query .= ' ORDER BY '.$search;
-                $output = db_handler($query, 'assoc', "get_name_of_services");
+                $query .= ' AND fk_id_item = ?';
+                $query .= ' ORDER BY '.$search; // sql-safe: allowlisted above
+                $output = db_handler($query, 'assoc', "get_name_of_services", array($value));
             }else{
                 // gives all service names back
-                $query .= ' ORDER BY '.$search;
+                $query .= ' ORDER BY '.$search; // sql-safe: allowlisted above
                 $output = db_handler($query, 'array', "get_name_of_services");
             }
 
@@ -854,7 +872,11 @@ something for later use... other query for link_as_child attrs....
                     AND ConfigClasses.config_class='advanced-service'
                     HAVING (SELECT ConfigClasses.config_class FROM ConfigClasses, ConfigItems 
                             WHERE ConfigItems.fk_id_class=ConfigClasses.id_class ";
-                    if ( !empty($search) ) $query .= " AND hostgroup_id = '".$search."' ";
+                    $params = array();
+                    if ( !empty($search) ){
+                        $query .= " AND hostgroup_id = ? ";
+                        $params[] = $search;
+                    }
                     $query .= "
                             AND ConfigItems.id_item=hostgroup_id)='hostgroup'
                     AND (SELECT fk_item_linked2 FROM ItemLinks, ConfigItems, ConfigClasses, ConfigAttrs 
@@ -864,9 +886,10 @@ something for later use... other query for link_as_child attrs....
                         AND ConfigClasses.config_class='host'
                         AND ConfigAttrs.attr_name='members'
                         AND ItemLinks.fk_item_linked2=hostgroup_id
-                        AND ItemLinks.fk_id_item=".$value.") IS NOT NULL 
+                        AND ItemLinks.fk_id_item = ?) IS NOT NULL 
                         ORDER BY hostgroup_name, advanced_service_name";
-            $output = db_handler($query, "array", "Get advanced services inherited over hostgroup");
+            $params[] = $value;
+            $output = db_handler($query, "array", "Get advanced services inherited over hostgroup", $params);
             break;
 
         case "template_inheritance":
@@ -876,13 +899,13 @@ something for later use... other query for link_as_child attrs....
                     WHERE fk_item_linked2=ConfigValues.fk_id_item
                         AND id_attr=ItemLinks.fk_id_attr
                         AND (SELECT naming_attr FROM ConfigAttrs WHERE id_attr=ConfigValues.fk_id_attr)="yes"
-                        AND attr_name = "'.$filter.'"
+                        AND attr_name = ?
                         AND ItemLinks.fk_id_item=(SELECT fk_item_linked2 FROM ItemLinks,ConfigAttrs
                             WHERE id_attr=fk_id_attr
-                                AND attr_name="'.$search.'"
-                                AND fk_id_item = "'.$value.'")
+                                AND attr_name = ?
+                                AND fk_id_item = ?)
                                 ORDER BY cust_order,ordering';
-            $output = db_handler($query, 'array', 'normal: '.$filter.'__'.$search);
+            $output = db_handler($query, 'array', 'normal: '.$filter.'__'.$search, array($filter, $search, $value));
             break;
 
         case "template_inheritance_collector_monitor":
@@ -892,10 +915,10 @@ something for later use... other query for link_as_child attrs....
                     WHERE fk_item_linked2=ConfigValues.fk_id_item
                         AND id_attr=ItemLinks.fk_id_attr
                         AND (SELECT naming_attr FROM ConfigAttrs WHERE id_attr=ConfigValues.fk_id_attr)="yes"
-                        AND attr_name = "'.$search.'"
-                        AND ItemLinks.fk_id_item="'.$value.'"
+                        AND attr_name = ?
+                        AND ItemLinks.fk_id_item = ?
                         ORDER BY cust_order,ordering';
-            $output = db_handler($query, 'array', 'coll_mon: '.$search);
+            $output = db_handler($query, 'array', 'coll_mon: '.$search, array($search, $value));
             break;
 
         case "template_inheritance_direct":
@@ -906,9 +929,9 @@ something for later use... other query for link_as_child attrs....
                         AND id_attr=ItemLinks.fk_id_attr
                         AND (SELECT naming_attr FROM ConfigAttrs WHERE id_attr=ConfigValues.fk_id_attr)="yes"
                         AND attr_name="use"
-                        AND ItemLinks.fk_id_item="'.$value.'"
+                        AND ItemLinks.fk_id_item = ?
                             ORDER BY cust_order,ordering';
-            $output = db_handler($query, 'array', "direct <i>(templates on item)</i>");
+            $output = db_handler($query, 'array', "direct <i>(templates on item)</i>", array($value));
             break;
 
 
@@ -922,13 +945,13 @@ something for later use... other query for link_as_child attrs....
                     WHERE fk_item_linked2=ConfigValues.fk_id_item
                     AND id_attr=ItemLinks.fk_id_attr
                     AND (SELECT naming_attr FROM ConfigAttrs WHERE id_attr=ConfigValues.fk_id_attr)="yes"
-                    AND ItemLinks.fk_id_item='.$value.'
+                    AND ItemLinks.fk_id_item = ?
                     ORDER BY
                     ConfigAttrs.friendly_name DESC,
                     ItemLinks.cust_order
                     ';
 
-            $output = db_handler($query_old_linked_data, "result", "get linked entries");
+            $output = db_handler($query_old_linked_data, "result", "get linked entries", array($value));
             break;
         case "get_linked_data_childs":
             # get entries linked as child (ItemLinks) for passed id   (without the childs saved in the parents!)
@@ -938,27 +961,27 @@ something for later use... other query for link_as_child attrs....
                 AND id_attr=ItemLinks.fk_id_attr
                 AND ConfigAttrs.visible="yes"
                 AND (SELECT naming_attr FROM ConfigAttrs WHERE id_attr=ConfigValues.fk_id_attr)="yes"
-                AND ItemLinks.fk_item_linked2='.$value.'
+                AND ItemLinks.fk_item_linked2 = ?
                 AND ConfigAttrs.attr_name <> "parents"
                 ORDER BY ConfigAttrs.friendly_name DESC';
 
-            $output = db_handler($query_old_linked_child_data, "result", "get linked as child entries");
+            $output = db_handler($query_old_linked_child_data, "result", "get linked as child entries", array($value));
             break;
 
         case "get_checkcommand_of_service":
             $query = 'SELECT fk_item_linked2 FROM ItemLinks,ConfigAttrs
                            WHERE fk_id_attr=id_attr
                            AND attr_name="check_command"
-                           AND fk_id_item='.$value;
-            $output = db_handler($query, "getOne", "get checkcommand of service $value");
+                           AND fk_id_item = ?';
+            $output = db_handler($query, "getOne", "get checkcommand of service $value", array($value));
             break;
 
         case "get_command_param_count_of_checkcommand":
             $command_query = 'SELECT attr_value FROM ConfigValues,ConfigAttrs
                                        WHERE id_attr=fk_id_attr
                                        AND attr_name="command_param_count"
-                                       AND fk_id_item='.$value;
-            $output = db_handler($command_query, "getOne", "Get command_param_count");
+                                       AND fk_id_item = ?';
+            $output = db_handler($command_query, "getOne", "Get command_param_count", array($value));
             break;
             
         case "get_default_checkcommand_params":
@@ -967,14 +990,14 @@ something for later use... other query for link_as_child attrs....
                                   AND attr_name="default_params"
                                   AND id_class=fk_id_class
                                   AND config_class="checkcommand"
-                                  AND fk_id_item="'.$value.'"';
+                                  AND fk_id_item = ?';
 
-            $default_params = db_handler($query, "getOne", "Read default checkcommand params");
+            $default_params = db_handler($query, "getOne", "Read default checkcommand params", array($value));
             if ($default_params == ""){
                 $output = "!";
             }else{
-                # escape the string for mysql (field contains: " ' \ etc. )
-                $output =  escape_string($default_params);
+                # returned unescaped: callers bind it as a query parameter or show it in a form
+                $output = $default_params;
             }
             break;
             
@@ -1009,7 +1032,8 @@ function get_linked_data($id){
 ###
 # NEW DB HANDLER
 ###
-function db_handler($query, $output = "result", $debug_title = "query"){
+# $params: one value per "?" in $query, bound by NConf\Db\Sql::run(); never paste values into $query
+function db_handler($query, $output = "result", $debug_title = "query", $params = array()){
 
     # Remove beginning spaces
     $query = trim($query);
@@ -1027,9 +1051,18 @@ function db_handler($query, $output = "result", $debug_title = "query"){
         message ('INFO', "DB_NO_WRITES activated, no deletions or modifications will be performed");
     }else{
         //$result = $dbh_obj->query($query);
-	$result = mysqli_query($dbh, $query);
-        // new DEBUG output
+        $prepared = FALSE;
+        if ( empty($params) ){
+            $result = mysqli_query($dbh, $query);
+        }else{
+            $prepared = \NConf\Db\Sql::run($dbh, $query, array_values($params));
+            $result = ($prepared === FALSE) ? FALSE : $prepared->result();
+        }
+        // new DEBUG output; bound values are left out, they may hold passwords
         $debug_query        = NConf_HTML::text_converter("sql_uppercase", $query);
+        if ( !empty($params) ){
+            $debug_query .= '<br>('.count($params).' bound parameters)';
+        }
         $debug_query_output = NConf_HTML::swap_content($debug_query, 'Query', FALSE, FALSE);
         $debug_data_result  = '<br>(Result output not yet defined)';
 
@@ -1045,7 +1078,7 @@ function db_handler($query, $output = "result", $debug_title = "query"){
                 case "insert":
                 case "update":
                 case "delete":
-                    $affected = mysqli_affected_rows($dbh);
+                    $affected = ($prepared === FALSE) ? mysqli_affected_rows($dbh) : $prepared->affectedRows();
                     if ( $affected > 0 ){
                         //message('DEBUG', "# affected rows: $affected", "ok");
                         $return = $affected;
@@ -1079,7 +1112,7 @@ function db_handler($query, $output = "result", $debug_title = "query"){
                     break;
                 
                 case "insert_id":
-                    $new_id = mysqli_insert_id($dbh);
+                    $new_id = ($prepared === FALSE) ? mysqli_insert_id($dbh) : $prepared->insertId();
                     $return = $new_id;
                     # DEBUG output with new API module:
                     $debug_data_result  = NConf_HTML::text('<b>Result: last query generated ID:</b>'.$return);
@@ -1167,8 +1200,8 @@ function check_link_as_child_or_bidirectional($id_attr, $class_id){
     # check link_as_child & link_bidirectional
     $lac_query = 'SELECT link_as_child, link_bidirectional, fk_id_class
                     FROM ConfigAttrs
-                    WHERE id_attr = "'.$id_attr.'"';
-    $lac_data = db_handler($lac_query, "assoc", "check link_as_child option");
+                    WHERE id_attr = ?';
+    $lac_data = db_handler($lac_query, "assoc", "check link_as_child option", array($id_attr));
     NConf_DEBUG::set( $lac_data, "DEBUG", 'get link_as_child / link_bidirectional of attr ('.$id_attr.')' );
     # change data
 /*
@@ -1235,18 +1268,18 @@ function add_attribute($id, $id_attr, $attr_value){
                 $insert_attr_value = encrypt_password($attr["value"]);
             }else{
                 # normal text/select
-                $insert_attr_value = escape_string($attr["value"]);
+                $insert_attr_value = $attr["value"];
             }
 
             # insert query
             $query = 'INSERT INTO ConfigValues
                 (fk_id_item, attr_value, fk_id_attr)
                 VALUES
-                ("'.$id.'", "'.$insert_attr_value.'", "'.$attr["key"].'")
+                (?, ?, ?)
                 ';
 
             if (DB_NO_WRITES != 1) {
-                $result_insert = db_handler($query, "insert", "Insert");
+                $result_insert = db_handler($query, "insert", "Insert", array($id, $insert_attr_value, $attr["key"]));
                 if ( $result_insert ){
                     NConf_DEBUG::set("Added attr ".$insert_attr_value, 'DEBUG', "Add attribute");
                     # add value ADDED to history
@@ -1273,22 +1306,19 @@ function add_attribute($id, $id_attr, $attr_value){
 
                     # create insert query
                     $check = check_link_as_child_or_bidirectional($attr["key"], $class_id);
+                    $query = 'INSERT INTO ItemLinks
+                        (fk_id_item, fk_item_linked2, fk_id_attr, cust_order)
+                        VALUES
+                        (?, ?, ?, ?)
+                        ';
                     if ( $check === TRUE ){
-                        $query = 'INSERT INTO ItemLinks
-                            (fk_id_item, fk_item_linked2, fk_id_attr, cust_order)
-                            VALUES
-                            ('.$many_attr["value"].', '.$id.', '.$attr["key"].', '.$cust_order.')
-                            ';
+                        $params = array($many_attr["value"], $id, $attr["key"], $cust_order);
                     }else{
-                        $query = 'INSERT INTO ItemLinks
-                            (fk_id_item, fk_item_linked2, fk_id_attr, cust_order)
-                            VALUES
-                            ('.$id.', '.$many_attr["value"].', '.$attr["key"].', '.$cust_order.')
-                            ';
+                        $params = array($id, $many_attr["value"], $attr["key"], $cust_order);
                     }    
 
                     if (DB_NO_WRITES != 1) {
-                        $result_insert = db_handler($query, "insert", "Insert");
+                        $result_insert = db_handler($query, "insert", "Insert", $params);
                         if ( $result_insert ){
                             history_add("assigned", $attr["key"], $many_attr["value"], $id, "resolve_assignment");
                             message ('DEBUG', '', "ok");
@@ -1326,17 +1356,19 @@ function read_attributes($config_class, $visible = ''){
     $query = 'SELECT id_attr,predef_value,datatype,fk_show_class_items 
                 FROM ConfigAttrs,ConfigClasses 
                 WHERE id_class=fk_id_class 
-                AND config_class="'.$config_class.'"';
+                AND config_class = ?';
+    $params = array($config_class);
 
     // debug message
     $message = 'Get attributes of class "'.$config_class.'"';
 
     // filter visible (yes/no)
     if ( !empty($visible) ){
-        $query   .= ' AND visible="'.$visible.'" ';
+        $query   .= ' AND visible = ? ';
+        $params[] = $visible;
         $message .= ' (visible="'.$visible.'") ';
     }
-    $result = db_handler($query, "result", $message);
+    $result = db_handler($query, "result", $message, $params);
     
     while($entry = mysqli_fetch_assoc($result)){
 
@@ -1369,10 +1401,10 @@ function read_attributes($config_class, $visible = ''){
                                 FROM ConfigValues,ConfigAttrs 
                                 WHERE id_attr=fk_id_attr 
                                 AND naming_attr="yes" 
-                                AND fk_id_class="'.$entry["fk_show_class_items"].'"
-                                AND attr_value="'.$predef_value.'";
+                                AND fk_id_class = ?
+                                AND attr_value = ?
                     ';
-                    $entry2 = db_handler($query2, "getOne", "Load linked item: ( not visible assign_MANY/CUST_ORDER )");
+                    $entry2 = db_handler($query2, "getOne", "Load linked item: ( not visible assign_MANY/CUST_ORDER )", array($entry["fk_show_class_items"], $predef_value));
                 }
                 
                 // set values to array ([] = important)
@@ -1902,9 +1934,9 @@ function oncall_check() {
     if ( !empty($ONCALL_GROUPS[0]) ){
         $oncall_group_ids = array();
         foreach ($ONCALL_GROUPS as $oncall_group){
-            $oncall_group_query = 'SELECT fk_id_item FROM ConfigValues, ConfigAttrs, ConfigClasses WHERE ConfigValues.fk_id_attr = ConfigAttrs.id_attr AND ConfigAttrs.fk_id_class = ConfigClasses.id_class AND ConfigClasses.config_class = "contactgroup" AND ConfigAttrs.attr_name = "contactgroup_name" AND ConfigValues.attr_value LIKE "'.$oncall_group.'"';
+            $oncall_group_query = 'SELECT fk_id_item FROM ConfigValues, ConfigAttrs, ConfigClasses WHERE ConfigValues.fk_id_attr = ConfigAttrs.id_attr AND ConfigAttrs.fk_id_class = ConfigClasses.id_class AND ConfigClasses.config_class = "contactgroup" AND ConfigAttrs.attr_name = "contactgroup_name" AND ConfigValues.attr_value LIKE ?';
             # add id to array
-            $oncall_id = db_handler($oncall_group_query, "getOne", "Select id of must have contact_group (oncall)");
+            $oncall_id = db_handler($oncall_group_query, "getOne", "Select id of must have contact_group (oncall)", array($oncall_group));
             if ( !empty($oncall_id) ){
                 $oncall_group_ids[] = $oncall_id;
             }else{
@@ -2041,9 +2073,9 @@ function get_childs($id, $mode, $levels = 0){
                     AND ConfigAttrs.visible="yes"
                     AND fk_id_class=id_class
                     AND (SELECT naming_attr FROM ConfigAttrs WHERE id_attr=ConfigValues.fk_id_attr)="yes"
-                    AND ItemLinks.fk_item_linked2="'.$id.'"
+                    AND ItemLinks.fk_item_linked2 = ?
                 ORDER BY config_class DESC,attr_value';
-    $result = db_handler($query, 'result', "get childs from $id");
+    $result = db_handler($query, 'result', "get childs from $id", array($id));
 
 
     while($entry = mysqli_fetch_assoc($result)){
@@ -2294,11 +2326,11 @@ function get_parents($id, &$flat = array(), $levels = 0){
                 AND id_attr=ItemLinks.fk_id_attr
                 AND fk_id_class=id_class
                 AND (SELECT naming_attr FROM ConfigAttrs WHERE id_attr=ConfigValues.fk_id_attr) ="yes"
-                AND ItemLinks.fk_id_item='.$id.'
+                AND ItemLinks.fk_id_item = ?
                 AND ConfigAttrs.attr_name = "parents"
             ORDER BY ConfigAttrs.friendly_name DESC,attr_value';
 
-    $result = db_handler($sql, "result", "Recursive get parents");
+    $result = db_handler($sql, "result", "Recursive get parents", array($id));
     while($entry = mysqli_fetch_assoc($result)){
 
         #special for services
@@ -2641,11 +2673,11 @@ function inheritance_HostToService($host_id, $mode = ''){
                     NConf_DEBUG::open_group("remove items");
                     foreach ( $diff_array2 AS $attr_removed_name => $attr_removed_id ){
                         $query = 'DELETE FROM ItemLinks
-                                    WHERE fk_id_item='.$service_id.'
-                                        AND fk_id_attr = "'.$attr_id.'"
-                                        AND fk_item_linked2 = "'.$attr_removed_id.'"
+                                    WHERE fk_id_item = ?
+                                        AND fk_id_attr = ?
+                                        AND fk_item_linked2 = ?
                                  ';
-                        db_handler($query, "delete", 'delete linked item "'.$attr_removed_name.'"');
+                        db_handler($query, "delete", 'delete linked item "'.$attr_removed_name.'"', array($service_id, $attr_id, $attr_removed_id));
                         history_add("unassigned", $change_attr_friendly_name, $attr_removed_name, $service_id);
                         $edited = TRUE;
                     }
@@ -2656,8 +2688,8 @@ function inheritance_HostToService($host_id, $mode = ''){
 
                     foreach ( $diff_array AS $attr_add_name => $attr_add_id ){
                         $query = 'INSERT INTO ItemLinks (fk_id_item,fk_item_linked2,fk_id_attr)
-                                    VALUES ('.$service_id.','.$attr_add_id.', '.$attr_id.')';
-                        db_handler($query, "insert", 'insert linked item "'.$attr_add_name.'"');
+                                    VALUES (?, ?, ?)';
+                        db_handler($query, "insert", 'insert linked item "'.$attr_add_name.'"', array($service_id, $attr_add_id, $attr_id));
                         history_add("assigned", $change_attr_friendly_name, $attr_add_name, $service_id);
                         $edited = TRUE;
                     }

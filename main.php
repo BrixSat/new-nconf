@@ -29,6 +29,11 @@ require_once(NCONFDIR.'/include/version.php');
 require_once(NCONFDIR.'/config/authentication.php');
 
 #
+# Composer autoloader (PSR-4 NConf\ in src/, classmap of include/classes/; no dev tools at runtime)
+#
+require_once(NCONFDIR.'/vendor/autoload.php');
+
+#
 # NConf classes
 #
 require_once(NCONFDIR.'/include/includeAllClasses.php');

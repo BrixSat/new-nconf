@@ -107,17 +107,18 @@ if (AUTH_TYPE == "file"){
     ##########
     # login check function
     //function auth_by_sql($username, $passwd, $sqlquery){
-    function auth_by_sql($sqlquery, $login = FALSE){
+    # $params: values for the "?" in $sqlquery (see auth_sql_bind)
+    function auth_by_sql($sqlquery, $login = FALSE, $params = array()){
         # Connect to external database if given
         if ( defined("AUTH_DBNAME") ){
             # if AUTH config is given, use it
             $auth_db_link = mysqli_connect(AUTH_DBHOST, AUTH_DBUSER, AUTH_DBPASS, AUTH_DBNAME, TRUE);
             //mysql_select_db(AUTH_DBNAME, $auth_db_link);
-            $result = db_handler($sqlquery, 'getOne', "Authentication by sql");
+            $result = db_handler($sqlquery, 'getOne', "Authentication by sql", $params);
             mysqli_close($auth_db_link);
         }else{
             # otherwise just use the NConf DB connection
-            $result = db_handler($sqlquery, 'getOne', "Authentication by sql using NConf DB");
+            $result = db_handler($sqlquery, 'getOne', "Authentication by sql using NConf DB", $params);
         }
 
         if ($result AND $login === TRUE) {
@@ -134,6 +135,21 @@ if (AUTH_TYPE == "file"){
             return FALSE;
         }
 
+    }
+
+    # The configured queries mark the login values as !!!USERNAME!!! / !!!PASSWORD!!!, usually in quotes.
+    # Each marker (with its quotes) becomes a bound "?", so a crafted username cannot rewrite the query.
+    function auth_sql_bind($template, $username, $password){
+        $params = array();
+        $sql = preg_replace_callback(
+            '/(["\']?)!!!(USERNAME|PASSWORD)!!!\1/',
+            function ($marker) use (&$params, $username, $password){
+                $params[] = ($marker[2] === 'USERNAME') ? $username : $password;
+                return '?';
+            },
+            $template
+        );
+        return array($sql, $params);
     }
     ##########
 
@@ -152,8 +168,8 @@ if (AUTH_TYPE == "file"){
                     AND config_class = "contact"
                     AND fk_id_item = user_id
                     AND attr_name = "contact_name"
-                    AND attr_value = "'.escape_string($user_loginname).'" )'; 
-        $user_password = auth_by_sql($sql_get_password);
+                    AND attr_value = ? )';
+        $user_password = auth_by_sql($sql_get_password, FALSE, array($user_loginname));
         # clean {CRYPT}
         $password = prepare_password($user_password, TRUE);
         # encrypt password with saved password (as salt)
@@ -164,20 +180,16 @@ if (AUTH_TYPE == "file"){
     }
 
     # Prepare querys
-    $auth_sqlquery_USER = AUTH_SQLQUERY_USER;
-    $auth_sqlquery_USER = str_replace("!!!USERNAME!!!", $user_loginname, $auth_sqlquery_USER);
-    $auth_sqlquery_USER = str_replace("!!!PASSWORD!!!", $user_pwd, $auth_sqlquery_USER);
+    list($auth_sqlquery_USER, $auth_params_USER) = auth_sql_bind(AUTH_SQLQUERY_USER, $user_loginname, $user_pwd);
     if ( defined("AUTH_SQLQUERY_ADMIN") ){
-        $auth_sqlquery_ADMIN = AUTH_SQLQUERY_ADMIN;
-        $auth_sqlquery_ADMIN = str_replace("!!!USERNAME!!!", $user_loginname, $auth_sqlquery_ADMIN);
-        $auth_sqlquery_ADMIN = str_replace("!!!PASSWORD!!!", $user_pwd, $auth_sqlquery_ADMIN);
+        list($auth_sqlquery_ADMIN, $auth_params_ADMIN) = auth_sql_bind(AUTH_SQLQUERY_ADMIN, $user_loginname, $user_pwd);
     }
 
     # Authentification
-    if ( ( defined("AUTH_SQLQUERY_ADMIN") ) AND auth_by_sql($auth_sqlquery_ADMIN, TRUE) ){
+    if ( ( defined("AUTH_SQLQUERY_ADMIN") ) AND auth_by_sql($auth_sqlquery_ADMIN, TRUE, $auth_params_ADMIN) ){
         $_SESSION['group'] = GROUP_ADMIN;
         NConf_DEBUG::set("admin", 'DEBUG', 'Group permissions:');
-    }elseif ( auth_by_sql($auth_sqlquery_USER, TRUE) ){
+    }elseif ( auth_by_sql($auth_sqlquery_USER, TRUE, $auth_params_USER) ){
         $_SESSION['group'] = GROUP_USER;
         NConf_DEBUG::set("user", 'DEBUG', 'Group permissions:');
     }else{

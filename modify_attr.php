@@ -20,8 +20,8 @@ if(isset($_GET['id'])){
 
 if ($id != "new"){
     # get entries
-    $query = 'SELECT * FROM ConfigAttrs WHERE id_attr="'.$id.'"';
-    $attr_entry = db_handler($query, "assoc", "get entries");
+    $query = 'SELECT * FROM ConfigAttrs WHERE id_attr=?';
+    $attr_entry = db_handler($query, "assoc", "get entries", array($id));
 
 }else{
     # new entry does not have predefined values like the modify part

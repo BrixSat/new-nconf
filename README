@@ -15,6 +15,7 @@ Table of contents
 A. Requirements
 B. Manual installation
 C. Manual update
+D. Development (Composer, checks and tests)
 
 
 A. Requirements
@@ -23,7 +24,8 @@ A. Requirements
 NConf system requirements:
 
     * Apache webserver
-    * PHP 5 or higher, php-mysqli, php-ldap (only if using LDAP auth)
+    * PHP 7.3.4 or 8.5, php-mysqli with mysqlnd, php-ldap (only if using LDAP auth)
+    * Composer 2 (only for development; vendor/ is committed, so deploys need no install)
     * MySQL 5.0.2 or higher (with InnoDB)
     * Perl 5.6 or higher, perl-DBI, perl-DBD-MySQL
     * Nagios 3.x or Icinga 0.8x (binary necessary for testing generated config)
@@ -188,3 +190,36 @@ Refresh browser cache:
 
 If NConf does not look or feel right after the update, push CTRL-F5.
 Your browser might have to reload some cached CSS & JavaScript files.  
+
+
+D. Development (Composer, checks and tests)
+-------------------------------------------
+
+Composer provides the class autoloader (vendor/autoload.php, loaded by
+main.php: PSR-4 namespace NConf\ in src/, plus include/classes/) and the
+dev tools. Install everything, including dev tools:
+
+   composer install-dev
+
+This also links githooks/pre-commit into .git/hooks/. Before every commit
+the hook runs "composer build-prod" (syntax check, SQL check, then a
+production-only install) and stages vendor/; run "composer install-dev"
+again afterwards to get the dev tools back.
+
+   composer check-syntax   php -l on every PHP file; silent when all pass
+   composer check-sql      lists every statement that pastes a variable into
+                           SQL; prints "No SQL built by concatenation found."
+   composer analyse        PHPStan (max level, PHP 7.3.4 rules) on the files in phpstan.neon
+   composer check-php73    lint + tests under PHP 7.3.4 (php:7.3.4-cli via podman/docker)
+   composer test           PHPUnit suite in tests/
+
+Database access: always pass values as "?" parameters, never inside the SQL
+text, e.g.
+
+   db_handler('SELECT attr_value FROM ConfigValues WHERE fk_id_item = ?',
+              'getOne', 'get value', array($id));
+
+IN lists use \NConf\Db\Sql::placeholders($values); table or column names
+that cannot be bound go through \NConf\Db\Sql::identifier($name) (src/Db/). A statement that
+check-sql flags but that is safe for a reason it cannot see gets a
+"sql-safe: <reason>" comment on the same line.

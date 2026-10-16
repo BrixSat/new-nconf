@@ -29,7 +29,7 @@
 if ( !empty($item_id) ){
     # Normal query
     $query = 'SELECT timestamp, action, attr_name FROM History
-            WHERE fk_id_item='.$item_id.'
+            WHERE fk_id_item=?
             AND action <> "edited"
             ORDER BY timestamp DESC, id_hist DESC
             LIMIT '.HISTORY_TAB_LIMIT.';';
@@ -40,7 +40,7 @@ if ( !empty($item_id) ){
 # Content
     echo '<table class="ui-nconf-table ui-nconf-max-width">';
 
-    $result = db_handler($query, 'result', "get history entries");
+    $result = db_handler($query, 'result', "get history entries", array($item_id));
     if (mysqli_num_rows($result) == 0){
         echo '<tr class="box_content"><td colspan=3>no history data found</td></tr>';
     }else{
@@ -103,4 +103,3 @@ if ( !empty($item_id) ){
     </div>
 </div>';
 
-?>

@@ -65,7 +65,7 @@ if ($type == "class") {
     $HTTP_referer = 'show_class.php';
 
     #query
-    $query = 'SELECT * FROM ConfigClasses WHERE id_class = '.$id;
+    $query = 'SELECT * FROM ConfigClasses WHERE id_class = ?';
 
 
 
@@ -103,7 +103,7 @@ if ($type == "class") {
             (SELECT ConfigClasses.config_class FROM ConfigClasses WHERE id_class= fk_show_class_items) AS fk_show_class_items,
             ConfigClasses.config_class AS fk_id_class
                 FROM ConfigAttrs, ConfigClasses
-                WHERE id_attr ='.$id.'
+                WHERE id_attr = ?
                 AND fk_id_class = ConfigClasses.id_class';
 
 }
@@ -142,7 +142,7 @@ echo '<div style="position: absolute; min-width: 350px;">';
 
 
         # get entries
-        $entries = db_handler($query, "array", "Get Details of $type");
+        $entries = db_handler($query, "array", "Get Details of $type", array($id));
         foreach($entries[0] as $title=>$value){
             // Change the titles for more user friendly titles
             $title = strtr($title, $user_friendly_names);

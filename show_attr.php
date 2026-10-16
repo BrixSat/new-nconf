@@ -156,11 +156,11 @@ if ( !empty($_GET["do"]) AND !empty($_GET["id"]) ){
     $query = 'SELECT ConfigAttrs.friendly_name, ConfigAttrs.ordering, id_attr, attr_name, datatype, mandatory, naming_attr
             FROM ConfigAttrs,ConfigClasses
                 WHERE id_class=fk_id_class
-                AND config_class="'.$class.'"
+                AND config_class=?
                 ORDER BY ConfigAttrs.ordering
     ';
 
-    $result = db_handler($query, "result", "get attributes from class");
+    $result = db_handler($query, "result", "get attributes from class", array($class));
     
     // Table beginning will be added in the output function
     $table  = '';

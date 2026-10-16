@@ -89,7 +89,7 @@ if (isset($_GET["xmode"]) && $_GET["xmode"] == "pikett"){
 }
 $list_state['order']    = $order;
 $list_state['quantity'] = $show_quantity;
-$list_state['filter']   = array_filter($filters, static fn($value) => $value !== '');
+$list_state['filter']   = array_filter($filters, static function($value){ return $value !== ''; });
 
 
 
@@ -126,7 +126,7 @@ if ( (defined('CMDB_SERVERLIST_COMPARE') AND CMDB_SERVERLIST_COMPARE == 1) AND (
 
         // Multimodify
         $('#submit_multimodify').click(function() {
-            $('#advanced').attr('action', 'handle_item.php?item=<?php echo $class;?>&type=multimodify');
+            $('#advanced').attr('action', <?php echo json_encode('handle_item.php?item='.urlencode($class).'&type=multimodify', JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>);
             $('#advanced').submit();
         });
 
@@ -205,7 +205,7 @@ echo '<form id="advanced" name="advanced" action="'.htmlspecialchars($request_ur
 
 # set class for submit form
 if (!empty($class) ){
-    echo '<input type="hidden" id="class" name="class" value="'.$class.'">';
+    echo '<input type="hidden" id="class" name="class" value="'.htmlspecialchars($class, ENT_QUOTES | ENT_HTML5, 'UTF-8').'">';
 }
 
 
@@ -270,7 +270,8 @@ if( ( isset($class) ) AND ($class != "") ){
        FROM ConfigValues,ConfigAttrs,ConfigClasses 
        WHERE id_attr=fk_id_attr AND naming_attr="yes" 
            AND id_class=fk_id_class 
-           AND config_class="'.$class.'"';
+           AND config_class=?';
+        $base_params = array($class);
 
 
     }else{
@@ -300,7 +301,7 @@ if( ( isset($class) ) AND ($class != "") ){
                     AND id_attr=fk_id_attr
                     AND naming_attr="yes"
                     AND ConfigItems.fk_id_class=id_class
-                    AND config_class="'.$class.'"';
+                    AND config_class=?';
         }elseif($class == "service"){
             # special query for service and its hostnames
             $query = 'SELECT
@@ -323,7 +324,7 @@ if( ( isset($class) ) AND ($class != "") ){
                         AND id_attr=fk_id_attr
                         AND naming_attr="yes"
                         AND ConfigItems.fk_id_class=id_class
-                        AND config_class="'.$class.'"';
+                        AND config_class=?';
         }else{
             $query = 'SELECT
                     id_item,
@@ -333,8 +334,9 @@ if( ( isset($class) ) AND ($class != "") ){
                         AND id_attr=fk_id_attr
                         AND naming_attr="yes"
                         AND ConfigItems.fk_id_class=id_class
-                        AND config_class="'.$class.'"';
+                        AND config_class=?';
         }
+        $base_params = array($class);
         
         # XMODE
         if(isset($_GET["xmode"]) && $_GET["xmode"] == "pikett"){
@@ -343,10 +345,11 @@ if( ( isset($class) ) AND ($class != "") ){
                 $oncall_i = 1;
                 foreach ($ONCALL_GROUPS as $oncall_group){
                     if ($oncall_i == 1){
-                        $query .= ' AND ( attr_value = "'.$oncall_group.'"';
+                        $query .= ' AND ( attr_value = ?';
                     }else{
-                        $query .= ' OR attr_value = "'.$oncall_group.'"';
+                        $query .= ' OR attr_value = ?';
                     }
+                    $base_params[] = $oncall_group;
                     $oncall_i++;
                 }
                 #close query correct
@@ -365,10 +368,11 @@ if( ( isset($class) ) AND ($class != "") ){
         $filters,
         $order.', '.$id_column.' ASC',
         $start,
-        $page_size
+        $page_size,
+        $base_params
     );
-    $result = $overview_page->rows;
-    $start  = $overview_page->start;
+    $result = $overview_page->rows();
+    $start  = $overview_page->start();
 
 
     # overview table in IE 8 will only do correct margin-top when previouse element has clear:both
@@ -396,7 +400,7 @@ if( ( isset($class) ) AND ($class != "") ){
               </td>';
 
         # pager: plain links carrying the whole list state; a missing link means that arrow is disabled
-        $total      = $overview_page->total;
+        $total      = $overview_page->total();
         $show_first = ($total > 0) ? $start + 1 : 0;
         $show_last  = ($page_size > 0) ? min($start + $page_size, $total) : $total;
         $has_prev   = $start > 0;
@@ -409,8 +413,8 @@ if( ( isset($class) ) AND ($class != "") ){
             echo overview_pager_link('2previouse', ICON_LEFT_ANIMATED,
                 $has_prev ? overview_url($list_state, array('start' => max(0, $start - $page_size))) : null);
             echo '<span> Entries '.$show_first.' - '.$show_last.' of '.$total;
-            if ($total !== $overview_page->unfiltered){
-                echo ' (filtered from '.$overview_page->unfiltered.')';
+            if ($total !== $overview_page->unfiltered()){
+                echo ' (filtered from '.$overview_page->unfiltered().')';
             }
             echo ' </span>';
             echo overview_pager_link('2next', ICON_RIGHT_ANIMATED,
@@ -481,9 +485,9 @@ if( ( isset($class) ) AND ($class != "") ){
                             FROM ConfigAttrs,ConfigClasses
                             WHERE id_class=fk_id_class
                             AND naming_attr="yes"
-                            AND config_class="'.$class.'"
+                            AND config_class=?
                             ';
-    $title_result = db_handler($query, 'result', "Friendly name");
+    $title_result = db_handler($query, 'result', "Friendly name", array($class));
     echo '<thead class="ui-widget-header">';
     echo '<tr>';
         if ($class == "host") {
@@ -588,7 +592,7 @@ if( ( isset($class) ) AND ($class != "") ){
         $filter_cells[] = overview_filter_control(
             $column,
             $filters[$column_key],
-            $overview_page->options[$column_key] ?? array(),
+            $overview_page->options()[$column_key] ?? array(),
             $filter_labels[$column_key]
         );
     }

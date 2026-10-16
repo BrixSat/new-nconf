@@ -19,8 +19,8 @@ if(isset($_GET['id'])){
 
 if ($id != "new"){
     # get entries
-    $query = 'SELECT * FROM ConfigClasses WHERE id_class="'.$id.'"';
-    $class_entry = db_handler($query, "assoc", "get entries");
+    $query = 'SELECT * FROM ConfigClasses WHERE id_class=?';
+    $class_entry = db_handler($query, "assoc", "get entries", array($id));
 
     $old_grouping = $class_entry["grouping"];
     $old_nav_privs = $class_entry["nav_privs"];

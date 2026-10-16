@@ -1,0 +1,14 @@
+# Strictly typed files only: the legacy pages predate type declarations and would
+# report thousands of errors; files join this list as they are brought up to standard.
+parameters:
+    level: max
+    # the new code must also run on PHP 7.3.4 (composer.json platform); flags functions it lacks
+    phpVersion: 70304
+    paths:
+        - src
+        - include/overview_list.php
+        - tools
+        - tests
+    excludePaths:
+        # deliberately unsafe sample code for CheckSqlConcatTest
+        - tests/fixtures

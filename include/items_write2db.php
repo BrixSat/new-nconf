@@ -102,14 +102,14 @@
                                 # interchange data
 
                                 $delete_query_lac = 'DELETE FROM ItemLinks
-                                        WHERE fk_id_attr="'.$attr["key"].'"
-                                        AND fk_item_linked2="'.$id.'"';
-                                db_handler($delete_query_lac, "delete", "Delete link as child");
+                                        WHERE fk_id_attr=?
+                                        AND fk_item_linked2=?';
+                                db_handler($delete_query_lac, "delete", "Delete link as child", array($attr["key"], $id));
                             }else{
                                 $delete_query = 'DELETE FROM ItemLinks
-                                        WHERE fk_id_attr="'.$attr["key"].'"
-                                        AND fk_id_item="'.$id.'"';
-                                db_handler($delete_query, "delete", "Delete (not link as child)");
+                                        WHERE fk_id_attr=?
+                                        AND fk_id_item=?';
+                                db_handler($delete_query, "delete", "Delete (not link as child)", array($attr["key"], $id));
                             }
                         }
 
@@ -163,10 +163,10 @@
                                 
                                 # check if value is already linked vice versa
                                 $query_vv = 'SELECT fk_id_item FROM ItemLinks
-                                            WHERE fk_id_attr = '.$fk_id_attr.'
-                                                AND fk_id_item = '.$id_2.'
-                                                AND fk_item_linked2 = '.$id_1.';';
-                                $vice_versa_exists = db_handler($query_vv, "num_rows", 'VICE VERSA-check');
+                                            WHERE fk_id_attr = ?
+                                                AND fk_id_item = ?
+                                                AND fk_item_linked2 = ?';
+                                $vice_versa_exists = db_handler($query_vv, "num_rows", 'VICE VERSA-check', array($fk_id_attr, $id_2, $id_1));
 
                                 # prevent linking item with himself
                                 # this is possible on multimodify because it should be available for others
@@ -182,10 +182,10 @@
                                     $query = 'INSERT INTO ItemLinks
                                         (fk_id_item, fk_item_linked2, fk_id_attr, cust_order)
                                         VALUES
-                                        ('.$id_1.', '.$id_2.', '.$fk_id_attr.', '.$cust_order.')';
+                                        (?, ?, ?, ?)';
 
                                     if (DB_NO_WRITES != 1) {
-                                        $result = db_handler($query, "result", 'link "'.$id_1.'" with '.$id_2);
+                                        $result = db_handler($query, "result", 'link "'.$id_1.'" with '.$id_2, array($id_1, $id_2, $fk_id_attr, $cust_order));
                                         if ($result){
                                             // ok
                                             history_add("assigned", $attr_name, $many_attr["value"], $id, "resolve_assignment");
@@ -219,11 +219,11 @@
                     }else{
                         # Lookup datatype
                         $query = 'SELECT ConfigValues.attr_value, ConfigAttrs.datatype FROM `ConfigAttrs`, ConfigValues
-                                    WHERE ConfigAttrs.id_attr = "'.$attr["key"].'"
+                                    WHERE ConfigAttrs.id_attr = ?
                                     AND ConfigValues.fk_id_attr = ConfigAttrs.id_attr
-                                    AND ConfigValues.fk_id_item = "'.$id.'"';
+                                    AND ConfigValues.fk_id_item = ?';
 
-                        $check = db_handler($query, "assoc", "Lookup value and datatype");
+                        $check = db_handler($query, "assoc", "Lookup value and datatype", array($attr["key"], $id));
                         if ($check == FALSE){
                             $check["datatype"] = db_templates("attr_datatype", $attr["key"]);
                         }
@@ -244,7 +244,7 @@
                                 }
                             }else{
                                 // modify text/select
-                                $insert_attr_value = escape_string($attr["value"]);
+                                $insert_attr_value = $attr["value"];
                             }
 
                             # only multimodify:
@@ -283,12 +283,12 @@
                             $query =   'INSERT INTO ConfigValues
                                             (attr_value, fk_id_attr, fk_id_item)
                                         VALUES
-                                            ("'.$insert_attr_value.'", "'.$attr["key"].'", '.$id.' )
+                                            (?, ?, ?)
                                         ON DUPLICATE KEY UPDATE
-                                            attr_value="'.$insert_attr_value.'"
+                                            attr_value=?
                                         ';
 
-                            $insert = db_handler($query, "insert", 'Insert entry');
+                            $insert = db_handler($query, "insert", 'Insert entry', array($insert_attr_value, $attr["key"], $id, $insert_attr_value));
                             if ($insert){
                                 message ($debug, 'Successfully added ('.stripslashes($insert_attr_value).')');
                                 if ($handle_action == "multimodify") $info_summary["ok"][] = $name;

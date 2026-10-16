@@ -113,10 +113,10 @@ echo NConf_HTML::page_title($item_class, $item_name);
                             WHERE id_attr=fk_id_attr
                             AND id_item=fk_id_item
                             AND ConfigAttrs.visible="yes" 
-                            AND id_item='.$item_id.'
+                            AND id_item=?
                             ORDER BY ConfigAttrs.ordering';
 
-    $result = db_handler($query, "array", "get basic entries");
+    $result = db_handler($query, "array", "get basic entries", array($item_id));
 
     $basic_result = array();
     # show or hide password if exists:
@@ -146,13 +146,13 @@ echo NConf_HTML::page_title($item_class, $item_name);
                                 AND ConfigAttrs.visible="yes"
                                 AND fk_id_class=id_class
                                 AND (SELECT naming_attr FROM ConfigAttrs WHERE id_attr=ConfigValues.fk_id_attr)="yes"
-                                AND ItemLinks.fk_id_item='.$item_id.'
+                                AND ItemLinks.fk_id_item=?
                             ORDER BY
                                 ConfigAttrs.friendly_name DESC,
                                 ItemLinks.cust_order,
                                 attr_value';
 
-    $result = db_handler($query2, "array", "get linked entries");
+    $result = db_handler($query2, "array", "get linked entries", array($item_id));
     echo table_output($result, $item_class, "This item is linked to");
 
 
@@ -285,9 +285,9 @@ echo NConf_HTML::page_title($item_class, $item_name);
             function detail_get_attr_value($the_item_id, $attr_name){
                 $q = 'SELECT attr_value FROM ConfigValues, ConfigAttrs
                         WHERE fk_id_attr = id_attr
-                          AND attr_name = "'.escape_string($attr_name).'"
-                          AND fk_id_item = "'.(int)$the_item_id.'"';
-                return db_handler($q, 'getOne', 'detail: get attr '.$attr_name);
+                          AND attr_name = ?
+                          AND fk_id_item = ?';
+                return db_handler($q, 'getOne', 'detail: get attr '.$attr_name, array($attr_name, (int)$the_item_id));
             }
         }
 
@@ -426,9 +426,9 @@ function table_output($result, $item_class = '', $title = '', $level = 0){
                                           AND naming_attr="yes"
                                           AND fk_id_class = id_class
                                           AND config_class="host"
-                                          AND ItemLinks.fk_id_item='.$entry["item_id"];
+                                          AND ItemLinks.fk_id_item=?';
 
-                $hostname = db_handler($host_query, "getOne", "Get linked hostnames (if service)");
+                $hostname = db_handler($host_query, "getOne", "Get linked hostnames (if service)", array($entry["item_id"]));
             }
 
             if ( !empty($entry["friendly_name"]) ){

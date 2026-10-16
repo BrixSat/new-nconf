@@ -23,8 +23,9 @@ if (isset($_POST['naming_attr']) AND $_POST['naming_attr'] == "yes") {
 
 // read mandatory values
 $attr_id = $_POST['attr_id'];
-$attr_name = escape_string($_POST['attr_name']);
-$friendly_name = escape_string($_POST['friendly_name']);
+# no escaping: the values are bound as query parameters below
+$attr_name = $_POST['attr_name'];
+$friendly_name = $_POST['friendly_name'];
 $visible = $_POST['visible'];
 $write2conf = $_POST['conf'];
 
@@ -49,19 +50,19 @@ if ($attr_id == "new") {
     }
 
 } else {
-    $query = "SELECT fk_id_class FROM ConfigAttrs WHERE id_attr=$attr_id";
-    $fk_id_class = db_handler($query, 'getOne', "get class id");
+    $query = "SELECT fk_id_class FROM ConfigAttrs WHERE id_attr=?";
+    $fk_id_class = db_handler($query, 'getOne', "get class id", array($attr_id));
 }
 
 # Get class name for later use (e.g. in link)
-$query = 'SELECT config_class FROM ConfigClasses where id_class = "' . $fk_id_class . '"';
-$class_name = db_handler($query, "getOne", "get class name");
+$query = 'SELECT config_class FROM ConfigClasses where id_class = ?';
+$class_name = db_handler($query, "getOne", "get class name", array($fk_id_class));
 
 ###
 # check if attr already exists in this class
 ###
-$query = 'SELECT id_attr, attr_name, friendly_name FROM ConfigAttrs WHERE fk_id_class="' . $fk_id_class . '" AND attr_name ="' . mysqli_real_escape_string($dbh, $attr_name) . '"';
-$result = db_handler($query, "assoc", "Check if attribute name already exists in this class");
+$query = 'SELECT id_attr, attr_name, friendly_name FROM ConfigAttrs WHERE fk_id_class=? AND attr_name =?';
+$result = db_handler($query, "assoc", "Check if attribute name already exists in this class", array($fk_id_class, $attr_name));
 
 # Entry exists?  -> if its a modify, the id should be the same as attr_id, else the user tries to rename it to a existing one, which is not allowed!
 if ((!empty($result)) AND (($attr_id == "new") OR ($attr_id != $result["id_attr"]))) {
@@ -127,19 +128,19 @@ if (isset($_POST['link_bidirectional'])) {
 
 // process non-mandatory values
 if (isset($_POST['description'])) {
-    $description = escape_string($_POST['description']);
+    $description = $_POST['description'];
 } else {
     $description = "NULL";
 }
 
 if (isset($_POST['poss_values'])) {
-    $poss_values = escape_string($_POST['poss_values']);
+    $poss_values = $_POST['poss_values'];
 } else {
     $poss_values = "";
 }
 
 if (isset($_POST['predef_value'])) {
-    $predef_value = escape_string($_POST['predef_value']);
+    $predef_value = $_POST['predef_value'];
 } else {
     $predef_value = "";
 }
@@ -153,8 +154,8 @@ if (isset($_POST['max_length'])) {
 if ($_POST['ordering'] != "") {
     $ordering = $_POST['ordering'];
 } else {
-    $query = "SELECT MAX(ordering) FROM ConfigAttrs WHERE fk_id_class=$fk_id_class";
-    $max_ord = db_handler($query, 'getOne', "get highest ordering number in class");
+    $query = "SELECT MAX(ordering) FROM ConfigAttrs WHERE fk_id_class=?";
+    $max_ord = db_handler($query, 'getOne', "get highest ordering number in class", array($fk_id_class));
     $ordering = $max_ord + 1;
 }
 
@@ -167,13 +168,32 @@ if ($write2db == "yes") {
         ## ADD CONTENT ##
         ##
 
-        $query = "INSERT INTO ConfigAttrs (attr_name,friendly_name,description,datatype,max_length,poss_values,predef_value,mandatory,ordering,visible,write_to_conf,naming_attr,link_as_child,link_bidirectional,fk_show_class_items,fk_id_class) VALUES ('$attr_name','$friendly_name','$description','$datatype','$max_length','$poss_values','$predef_value','$mandatory','$ordering','$visible','$write2conf','$naming_attr','$link_as_child','$link_bidirectional',$fk_show_class_items,'$fk_id_class')";
+        $query = "INSERT INTO ConfigAttrs (attr_name,friendly_name,description,datatype,max_length,poss_values,predef_value,mandatory,ordering,visible,write_to_conf,naming_attr,link_as_child,link_bidirectional,fk_show_class_items,fk_id_class) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
+        # strval: these were quoted in the SQL, so a missing value was stored as '' (not NULL)
+        $params = array_map('strval', array(
+            $attr_name,
+            $friendly_name,
+            $description,
+            $datatype,
+            $max_length,
+            $poss_values,
+            $predef_value,
+            $mandatory,
+            $ordering,
+            $visible,
+            $write2conf,
+            $naming_attr,
+            $link_as_child,
+            $link_bidirectional,
+        ));
+        # "NULL" was pasted unquoted, i.e. SQL NULL
+        $params[] = ($fk_show_class_items === "NULL") ? NULL : $fk_show_class_items;
+        $params[] = (string)$fk_id_class;
 
-        $result = db_handler($query, "result", "insert");
+        # Get ID of insert (the statement's own id: prepared inserts do not go through mysqli_query)
+        $new_id = db_handler($query, "insert_id", "insert", $params);
 
-        if ($result) {
-            # Get ID of insert:
-            $new_id = mysqli_insert_id($dbh);
+        if ($new_id) {
 
             echo NConf_HTML::text("Successfully added attribute &quot;$attr_name&quot;");
 
@@ -260,25 +280,39 @@ if ($write2db == "yes") {
         // ");
 
         # get old ordering number
-        $old_ordering = db_handler("SELECT ordering FROM ConfigAttrs WHERE id_attr=$attr_id", "getOne", "GET old ordering number of attr");
+        $old_ordering = db_handler("SELECT ordering FROM ConfigAttrs WHERE id_attr=?", "getOne", "GET old ordering number of attr", array($attr_id));
 
         // UPDATE ConfigAttrs
         $query = "UPDATE ConfigAttrs
                 SET
-                attr_name = '$attr_name',
-                friendly_name = '$friendly_name',
-                description = '$description',
-                max_length = '$max_length',
-                poss_values = '$poss_values',
-                predef_value = '$predef_value',
-                mandatory = '$mandatory',
-                ordering = '$ordering',
-                visible = '$visible',
-                write_to_conf = '$write2conf'
+                attr_name = ?,
+                friendly_name = ?,
+                description = ?,
+                max_length = ?,
+                poss_values = ?,
+                predef_value = ?,
+                mandatory = ?,
+                ordering = ?,
+                visible = ?,
+                write_to_conf = ?
                 WHERE
-                id_attr = $attr_id";
+                id_attr = ?";
+        # strval: these were quoted in the SQL, so a missing value was stored as '' (not NULL)
+        $params = array_map('strval', array(
+            $attr_name,
+            $friendly_name,
+            $description,
+            $max_length,
+            $poss_values,
+            $predef_value,
+            $mandatory,
+            $ordering,
+            $visible,
+            $write2conf,
+        ));
+        $params[] = $attr_id;
 
-        $result = db_handler($query, "update", "Modify attribute parameters");
+        $result = db_handler($query, "update", "Modify attribute parameters", $params);
 
         if ($result) {
 

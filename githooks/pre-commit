@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# Description: Blocks the commit unless `composer build-prod` (lint, SQL check,
+#              prod install) succeeds, then stages the resulting vendor/ changes.
+#              Removes dev packages — run `composer install-dev` after.
+# Version:     1.00.000
+# Usage:       Auto-installed as a symlink by `composer install`/`update`
+#              (install-git-hooks in composer.json).
+# Env vars:    (none)
+# Depends:     composer, php
+# Concurrent:  No — mutates vendor/ and the index.
+set -Eeuo pipefail
+
+cd "$(git rev-parse --show-toplevel)"
+
+composer run-script build-prod
+git add vendor/ composer.lock

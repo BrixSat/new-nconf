@@ -30,9 +30,9 @@ if ( $_POST["mode"] == "add_service" ){
                 AND attr_name="host-preset"
                 AND id_class=fk_id_class
                 AND config_class="host"
-                AND fk_id_item="'.$host_ID.'"';
+                AND fk_id_item=?';
 
-    $hosttemplate_id = db_handler($query, "getOne", "Get selected host-preset of added host");
+    $hosttemplate_id = db_handler($query, "getOne", "Get selected host-preset of added host", array($host_ID));
 
     if ( !empty($hosttemplate_id) ){
         // Get checkcommands of selected host-preset
@@ -43,9 +43,9 @@ if ( $_POST["mode"] == "add_service" ){
             AND naming_attr="yes"
             AND id_class=fk_id_class
             AND config_class="checkcommand"
-            AND fk_item_linked2='.$hosttemplate_id;
+            AND fk_item_linked2=?';
 
-        $checkcommand = db_handler($query, "array_direct", "Get checkcommands of selected host-preset");
+        $checkcommand = db_handler($query, "array_direct", "Get checkcommands of selected host-preset", array($hosttemplate_id));
     }
 
 }
@@ -74,13 +74,13 @@ if (  ( is_array($checkcommand) ) AND !empty($checkcommand)  ){
 
             // Link new service with host        
             $query = 'INSERT INTO ItemLinks (fk_id_item,fk_item_linked2,fk_id_attr) 
-                        VALUES ('.$new_service_ID.','.$host_ID.',
+                        VALUES (?, ?,
                             (SELECT id_attr FROM ConfigAttrs,ConfigClasses 
                             WHERE id_class=fk_id_class 
                             AND config_class="service" 
                             AND attr_name="host_name"))
                      ';
-            db_handler($query, "insert", "Link new service with host");
+            db_handler($query, "insert", "Link new service with host", array($new_service_ID, $host_ID));
 
 
             ////
@@ -121,12 +121,9 @@ if (  ( is_array($checkcommand) ) AND !empty($checkcommand)  ){
 
             // Set name of service
             $query = 'INSERT INTO ConfigValues (attr_value, fk_id_item, fk_id_attr) 
-                       VALUES ( "'.$service_name["service_name"].'"
-                                ,'.$new_service_ID.'
-                                ,'.$service_name_id.'
-                              )
+                       VALUES ( ?, ?, ? )
                      ';
-            $status = db_handler($query, "insert", "Set name of service");
+            $status = db_handler($query, "insert", "Set name of service", array($service_name["service_name"], $new_service_ID, $service_name_id));
             if ($status){
                 // add create entry
                 history_add("created", "service", $service_name["service_name"], $new_service_ID);
@@ -152,12 +149,9 @@ if (  ( is_array($checkcommand) ) AND !empty($checkcommand)  ){
             // default checkcommand params handling
             // Link service with checkcommand
             $query = 'INSERT INTO ItemLinks (fk_id_item,fk_item_linked2,fk_id_attr) 
-                        VALUES ( '.$new_service_ID.'
-                                ,'.$checkcommand_ID.'
-                                ,'.$check_command_attr_id.'
-                                )
+                        VALUES ( ?, ?, ? )
                      ';
-            db_handler($query, "insert", "Link service with checkcommand");
+            db_handler($query, "insert", "Link service with checkcommand", array($new_service_ID, $checkcommand_ID, $check_command_attr_id));
 
             $check_params_attr_id = db_templates("get_attr_id", "service", "check_params");
 
@@ -170,13 +164,10 @@ if (  ( is_array($checkcommand) ) AND !empty($checkcommand)  ){
 
             // Set default checkcommand params
             $query = 'INSERT INTO ConfigValues (fk_id_item,attr_value,fk_id_attr)
-                       VALUES(  '.$new_service_ID.'
-                             , "'.$default_params.'"
-                             , '.$check_params_attr_id.'
-                             )
+                       VALUES( ?, ?, ? )
                      ';
 
-            $status = db_handler($query, "insert", "set default checkcommand params");
+            $status = db_handler($query, "insert", "set default checkcommand params", array($new_service_ID, $default_params, $check_params_attr_id));
             if ($status) history_add("added", $check_params_attr_id, $default_params, $new_service_ID);
 
 
@@ -187,12 +178,12 @@ if (  ( is_array($checkcommand) ) AND !empty($checkcommand)  ){
                         FROM ItemLinks,ConfigAttrs,ConfigClasses
                         WHERE id_attr=fk_id_attr
                             AND id_class=fk_id_class
-                            AND fk_id_item="'.$host_ID.'"
+                            AND fk_id_item=?
                             HAVING (SELECT config_class FROM ConfigItems,ConfigClasses 
                                     WHERE id_class=fk_id_class 
                                         AND id_item=item_id) = "timeperiod"';
 
-            $result = db_handler($query, "result", "select timeperiods");
+            $result = db_handler($query, "result", "select timeperiods", array($host_ID));
             if ($result){
                 if ( mysqli_num_rows($result) > 0 ){
                     while ($timeperiod = mysqli_fetch_assoc($result)){
@@ -203,13 +194,10 @@ if (  ( is_array($checkcommand) ) AND !empty($checkcommand)  ){
                         
 
                         $query = 'INSERT INTO ItemLinks (fk_id_item,fk_item_linked2,fk_id_attr) 
-                                    VALUES ('.$new_service_ID.'
-                                           ,'.$timeperiod["item_id"].'
-                                           ,'.$timeperiod_id.'
-                                           )
+                                    VALUES ( ?, ?, ? )
                                  ';
 
-                        $status = db_handler($query, "insert", "insert timeperiod");
+                        $status = db_handler($query, "insert", "insert timeperiod", array($new_service_ID, $timeperiod["item_id"], $timeperiod_id));
                         if ($status) {
                             history_add("assigned", $timeperiod_id, $timeperiod["item_id"], $new_service_ID, "resolve_assignment");
                         }
@@ -229,10 +217,10 @@ if (  ( is_array($checkcommand) ) AND !empty($checkcommand)  ){
                         FROM ItemLinks,ConfigAttrs 
                         WHERE id_attr=fk_id_attr
                         AND attr_name="contact_groups"
-                        AND fk_id_item="'.$host_ID.'"
+                        AND fk_id_item=?
                      ';
 
-            $result = db_handler($query, "result", "Link service with same contactgroups as host (select)");
+            $result = db_handler($query, "result", "Link service with same contactgroups as host (select)", array($host_ID));
             if ($result){
                 if ( mysqli_num_rows($result) > 0 ){
                     while ($contactgroup_ID = mysqli_fetch_row($result)){
@@ -243,13 +231,10 @@ if (  ( is_array($checkcommand) ) AND !empty($checkcommand)  ){
                         
 
                         $query = 'INSERT INTO ItemLinks (fk_id_item,fk_item_linked2,fk_id_attr) 
-                                    VALUES ( '.$new_service_ID.'
-                                            ,'.$contactgroup_ID[0].'
-                                            ,'.$contact_groups_id.'
-                                           )
+                                    VALUES ( ?, ?, ? )
                                  ';
 
-                        $status = db_handler($query, "insert", "Link service with same contactgroups as host (insert)");
+                        $status = db_handler($query, "insert", "Link service with same contactgroups as host (insert)", array($new_service_ID, $contactgroup_ID[0], $contact_groups_id));
                         if ($status) {
                             history_add("assigned", $contact_groups_id, $contactgroup_ID[0], $new_service_ID, "resolve_assignment");
                         }

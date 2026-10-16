@@ -5,8 +5,9 @@
 # Handle different histories (basic or detail)
 if ( !empty($_GET["id"]) ){
     # Get History of a Item
-    $basic_query = ' fk_id_item='.$_GET["id"].'
+    $basic_query = ' fk_id_item=?
                 AND action <> "edited"';
+    $basic_params = array($_GET["id"]);
 
     $show_item_links = FALSE;
 
@@ -21,6 +22,7 @@ if ( !empty($_GET["id"]) ){
             . ' OR action ="module"'
             . ' OR (action ="modified"'
                 . ' AND (attr_name = "Class" OR attr_name = "Attribute"))';
+    $basic_params = array();
 
 }
 
@@ -30,18 +32,20 @@ if ( !empty($_GET["id"]) ){
 $sLimit = "";
 if ( isset( $_GET['iDisplayStart'] ) AND ( !empty($_GET['iDisplayLength']) AND $_GET['iDisplayLength'] != "-1" ) )
 {
-    $sLimit = "LIMIT ".$dbh_obj->real_escape_string($_GET['iDisplayStart'] ).", ".
-        $dbh_obj->real_escape_string($_GET['iDisplayLength'] );
+    # ints only: escaping does not protect a value that is not inside quotes
+    $sLimit = "LIMIT ".(int)$_GET['iDisplayStart'].", ".(int)$_GET['iDisplayLength'] /* sql-safe: int casts */;
 }
 
 /* Ordering */
 if ( isset( $_GET['iSortCol_0'] ) )
 {
+    # column names come from fnColumnToField() and directions from a fixed list, never from the request
     $sOrder = "ORDER BY  ";
-    for ( $i=0 ; $i<$dbh_obj->real_escape_string($_GET['iSortingCols'] ) ; $i++ )
+    for ( $i=0 ; $i<(int)$_GET['iSortingCols'] ; $i++ )
     {
-        $sOrder .= fnColumnToField($dbh_obj->real_escape_string($_GET['iSortCol_'.$i] ))."
-            ".$dbh_obj->real_escape_string($_GET['sSortDir_'.$i] ) .", ";
+        $sort_dir = ( isset($_GET['sSortDir_'.$i]) AND strtolower($_GET['sSortDir_'.$i]) === "desc" ) ? "desc" : "asc";
+        $sOrder .= fnColumnToField( isset($_GET['iSortCol_'.$i]) ? (int)$_GET['iSortCol_'.$i] : -1 )."
+            ".$sort_dir.", "; // sql-safe: allowlisted column and direction
     }
     $sOrder = substr_replace( $sOrder, "", -2 );
 }
@@ -53,12 +57,15 @@ if ( $_GET['sSearch'] != "" )
     # split each word on space
     $search_words = explode(" ", $_GET['sSearch']);
     $sWhere = "AND ( ";
+    $search_params = array();
     $i = 0;
     foreach ($search_words AS $search_word) {
         # after the first search, add a AND
         if ($i > 0) $sWhere .= ' AND ';
         # concatenate all history fields with separator and search word
-        $sWhere .= "CONCAT_WS(',', LOWER(user_str), action, attr_name, LOWER(attr_value), timestamp ) LIKE '%".$dbh_obj->real_escape_string(strtolower($search_word) )."%'";
+        # the word keeps its % and _ wildcards, as with the escaping used before
+        $sWhere .= "CONCAT_WS(',', LOWER(user_str), action, attr_name, LOWER(attr_value), timestamp ) LIKE ?";
+        $search_params[] = '%'.strtolower($search_word).'%';
         $i++;
     }
     $sWhere .= " ) ";
@@ -69,20 +76,22 @@ $sQuery = 'SELECT SQL_CALC_FOUND_ROWS *
     FROM History
     WHERE ('
         . $basic_query
-    . ')';
+    . ')' /* sql-safe: $basic_query is fixed SQL with placeholders */;
 
     $sQuery .= "
         $sWhere
         $sOrder
         $sLimit
-    ";
+    " /* sql-safe: $sWhere holds only placeholders, $sOrder and $sLimit are allowlisted/int */;
 
 
 # for debugging query, but JSON load will then fail
 if ($debug == "yes") echo $sQuery;
 
 
-$rResult = $dbh_obj->query($sQuery) or die('Query: '.$sQuery.'<br><br>'.$dbh_obj->error);
+$sParams = array_merge($basic_params, isset($search_params) ? $search_params : array());
+$rPrepared = \NConf\Db\Sql::run($dbh_obj, $sQuery, $sParams) or die('Query: '.$sQuery.'<br><br>'.$dbh_obj->error);
+$rResult = $rPrepared->result();
 
 $sQuery = "
     SELECT FOUND_ROWS()
@@ -95,9 +104,10 @@ $sQuery = "
     SELECT COUNT(id_hist)
     FROM   History
     WHERE "
-    . $basic_query;
+    . $basic_query; // sql-safe: $basic_query is fixed SQL with placeholders
 
-$rResultTotal = $dbh_obj->query($sQuery) or die($dbh_obj->error);
+$rPreparedTotal = \NConf\Db\Sql::run($dbh_obj, $sQuery, $basic_params) or die($dbh_obj->error);
+$rResultTotal = $rPreparedTotal->result();
 $aResultTotal = $rResultTotal->fetch_array();
 $iTotal = $aResultTotal[0];
 

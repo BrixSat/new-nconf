@@ -101,9 +101,9 @@ if ( !empty($_GET["id"]) ){
                         AND naming_attr = "yes" 
                         AND id_class = fk_id_class 
                         AND config_class = "contact" 
-                        AND attr_value = "'.$_GET["xmode"].'"';
+                        AND attr_value = ?';
 
-        $qres = mysqli_query($dbh, $query);
+        $qres = db_handler($query, "result", "get id of on-call contact", array($_GET["xmode"]));
         $entry = mysqli_fetch_assoc($qres);
 
         $_GET["id"] = $entry["fk_id_item"];
@@ -122,13 +122,13 @@ if ( !empty($_GET["id"]) ){
 
 
     # get basic entries (ConfigValues) for passed id
-    $query = mysqli_query($dbh, 'SELECT id_attr,attr_value
+    $query = db_handler('SELECT id_attr,attr_value
                             FROM ConfigAttrs,ConfigValues,ConfigItems
                             WHERE id_attr=fk_id_attr
                             AND id_item=fk_id_item
                             AND visible="yes" 
-                            AND id_item='.$_GET["id"].'
-                            ORDER BY ordering');
+                            AND id_item = ?
+                            ORDER BY ordering', "result", "basic entries", array($_GET["id"]));
 
     $item_data = array();
     while($entry = mysqli_fetch_assoc($query)){
@@ -142,12 +142,12 @@ if ( !empty($_GET["id"]) ){
                     AND id_attr=ItemLinks.fk_id_attr 
                     AND ConfigAttrs.visible="yes" 
                     AND (SELECT naming_attr FROM ConfigAttrs WHERE id_attr=ConfigValues.fk_id_attr)="yes" 
-                    AND ItemLinks.fk_id_item='.$_GET["id"].'
+                    AND ItemLinks.fk_id_item = ?
                     ORDER BY
                     ConfigAttrs.friendly_name DESC,
                     ItemLinks.cust_order
                     ';
-    $result2 = db_handler($query2, "result", "linked entries");
+    $result2 = db_handler($query2, "result", "linked entries", array($_GET["id"]));
 
     $item_data2 = array();
     while($entry2 = mysqli_fetch_assoc($result2)){
@@ -162,10 +162,10 @@ if ( !empty($_GET["id"]) ){
                     AND id_attr=ItemLinks.fk_id_attr
                     AND ConfigAttrs.visible="yes"
                     AND (SELECT naming_attr FROM ConfigAttrs WHERE id_attr=ConfigValues.fk_id_attr)="yes"
-                    AND ItemLinks.fk_item_linked2='.$_GET["id"].'
+                    AND ItemLinks.fk_item_linked2 = ?
                     ORDER BY ConfigAttrs.friendly_name DESC';
 
-    $result3 = db_handler($query3, "result", "Linked as child");
+    $result3 = db_handler($query3, "result", "Linked as child", array($_GET["id"]));
 
     while($entry3 = mysqli_fetch_assoc($result3)){
         $item_data2[$entry3["id_attr"]][$entry3["fk_id_item"]] = $entry3["attr_value"];
@@ -481,7 +481,7 @@ if(
 
             # check if items being displayed are "services"
             if(isset($entry["fk_show_class_items"])){
-                $srvquery = mysqli_query($dbh, 'SELECT config_class FROM ConfigClasses WHERE id_class='.$entry["fk_show_class_items"]);
+                $srvquery = db_handler('SELECT config_class FROM ConfigClasses WHERE id_class = ?', "result", "class of the items shown", array($entry["fk_show_class_items"]));
                 $srv = mysqli_fetch_assoc($srvquery);
             }
 
@@ -598,8 +598,8 @@ if(
                         $command_query = 'SELECT attr_value FROM ConfigValues,ConfigAttrs
                                                        WHERE id_attr=fk_id_attr
                                                        AND attr_name="command_syntax"
-                                                       AND fk_id_item='.$check_command_id;
-                        $cmd_syntax_string = db_handler($command_query, "getOne", "Get command syntax");
+                                                       AND fk_id_item = ?';
+                        $cmd_syntax_string = db_handler($command_query, "getOne", "Get command syntax", array($check_command_id));
                         $cmd_syntax = explode(",", $cmd_syntax_string);
                         
                         # generate html output
@@ -713,6 +713,7 @@ if(
 
             # process "assign_one" fields
             }elseif($entry["datatype"] == "assign_one"){
+                $query2_params = array();
                 if ($srv["config_class"] == "service"){
                     $query2 = 'SELECT id_item,attr_value,
                                                 (SELECT attr_value FROM ConfigValues,ConfigAttrs,ConfigClasses,ItemLinks
@@ -727,10 +728,12 @@ if(
                                                         AND id_attr=fk_id_attr
                                                         AND naming_attr="yes"';
                     if ($handle_action == "modify"){
-                        $query2 .= '                    AND id_item <> '.$_GET["id"];
+                        $query2 .= '                    AND id_item <> ?';
+                        $query2_params[] = $_GET["id"];
                     }
-                    $query2 .= '                        AND ConfigItems.fk_id_class='.$entry["fk_show_class_items"].'
+                    $query2 .= '                        AND ConfigItems.fk_id_class = ?
                                                 ORDER BY hostname,attr_value';
+                    $query2_params[] = $entry["fk_show_class_items"];
                 }else{
                     $query2 = 'SELECT id_item,attr_value
                                                 FROM ConfigItems,ConfigValues,ConfigAttrs
@@ -738,16 +741,18 @@ if(
                                                         AND id_attr=fk_id_attr
                                                         AND naming_attr="yes"';
                     if ($handle_action == "modify"){
-                        $query2 .= '                    AND id_item <> '.$_GET["id"];
+                        $query2 .= '                    AND id_item <> ?';
+                        $query2_params[] = $_GET["id"];
                     }
-                    $query2 .= '                        AND ConfigItems.fk_id_class='.$entry["fk_show_class_items"].'
+                    $query2 .= '                        AND ConfigItems.fk_id_class = ?
                                                 ORDER BY attr_value';
+                    $query2_params[] = $entry["fk_show_class_items"];
                 }
-                $result2 = db_handler($query2, "result", "assign_one");
+                $result2 = db_handler($query2, "result", "assign_one", $query2_params);
 
                 if ($handle_action == "add" AND ($item_class == "service" OR $item_class == "advanced-service") AND $entry["id_attr"] == $check_command_attr_id){
                     # special for check_command
-                    $check_command_first_id = db_handler($query2.' LIMIT 1', "getOne", "get id of first checkcommand for check params / arguments");
+                    $check_command_first_id = db_handler($query2.' LIMIT 1', "getOne", "get id of first checkcommand for check params / arguments", $query2_params /* sql-safe: $query2 holds only placeholders */);
                     echo '<td><select id="check_command_select" name="'.$entry["id_attr"].'[]">';
                 }elseif($handle_action == "modify" AND ($item_class == "service" OR $item_class == "advanced-service") AND ($entry["id_attr"] == $check_command_attr_id OR $entry["id_attr"] == $host_name_attr_id) ){
                     # modify service should have disabled check_command and hostname
@@ -810,8 +815,9 @@ if(
                                                 WHERE id_item=fk_id_item
                                                     AND id_attr=fk_id_attr
                                                     AND naming_attr="yes"
-                                                    AND ConfigItems.fk_id_class='.$entry["fk_show_class_items"].'
+                                                    AND ConfigItems.fk_id_class = ?
                                                 ORDER BY hostname,attr_value';
+                        $query2_params = array($entry["fk_show_class_items"]);
                     }else{
                         # modify
                         $query2 = 'SELECT id_item,attr_value,
@@ -826,16 +832,17 @@ if(
                                     WHERE id_item=fk_id_item
                                         AND id_attr=fk_id_attr
                                         AND naming_attr="yes"
-                                        AND id_item <> '.$_GET["id"].'
-                                        AND ConfigItems.fk_id_class='.$entry["fk_show_class_items"].'
+                                        AND id_item <> ?
+                                        AND ConfigItems.fk_id_class = ?
                                         AND (SELECT fk_id_item FROM ItemLinks,ConfigAttrs,ConfigClasses
                                                 WHERE id_attr=fk_id_attr
                                                 AND id_class=fk_id_class
-                                                AND config_class="'.$item_class.'"
+                                                AND config_class = ?
                                                 AND (attr_name="parents" OR attr_name="dependent_service_description")
-                                                AND fk_item_linked2="'.$_GET["id"].'"
+                                                AND fk_item_linked2 = ?
                                                 AND fk_id_item=id_item) IS NULL
                                     ORDER BY hostname,attr_value';
+                        $query2_params = array($_GET["id"], $entry["fk_show_class_items"], $item_class, $_GET["id"]);
                     }
                 }else{
                     if ($handle_action != "modify"){
@@ -845,8 +852,9 @@ if(
                                                 WHERE id_item=fk_id_item
                                                     AND id_attr=fk_id_attr
                                                     AND naming_attr="yes"
-                                                    AND ConfigItems.fk_id_class='.$entry["fk_show_class_items"].'
+                                                    AND ConfigItems.fk_id_class = ?
                                                 ORDER BY attr_value';
+                        $query2_params = array($entry["fk_show_class_items"]);
                     }else{
                         # modify
                         $query2 = 'SELECT id_item,attr_value
@@ -854,20 +862,21 @@ if(
                                     WHERE id_item=fk_id_item
                                         AND id_attr=fk_id_attr
                                         AND naming_attr="yes"
-                                        AND id_item <> '.$_GET["id"].'
-                                        AND ConfigItems.fk_id_class='.$entry["fk_show_class_items"].'
+                                        AND id_item <> ?
+                                        AND ConfigItems.fk_id_class = ?
                                         AND (SELECT fk_id_item FROM ItemLinks,ConfigAttrs,ConfigClasses
                                                 WHERE id_attr=fk_id_attr
                                                 AND id_class=fk_id_class
-                                                AND config_class="'.$item_class.'"
+                                                AND config_class = ?
                                                 AND (attr_name="parents" OR attr_name="dependent_service_description")
-                                                AND fk_item_linked2="'.$_GET["id"].'"
+                                                AND fk_item_linked2 = ?
                                                 AND fk_id_item=id_item) IS NULL
                                     ORDER BY attr_value';
+                        $query2_params = array($_GET["id"], $entry["fk_show_class_items"], $item_class, $_GET["id"]);
                     }
                 }
 
-                $result2 = db_handler($query2, "result", "assign_many");
+                $result2 = db_handler($query2, "result", "assign_many", $query2_params);
                 echo '<td colspan=3>
                         <div class="select-container">
                           <select id="fromBox_'.$entry["id_attr"].'" name="from_'.$entry["id_attr"].'[]" style="'.CSS_SELECT_MULTI.'" multiple ';
@@ -975,8 +984,9 @@ if(
                                                 WHERE id_item=fk_id_item
                                                     AND id_attr=fk_id_attr
                                                     AND naming_attr="yes"
-                                                    AND ConfigItems.fk_id_class='.$entry["fk_show_class_items"].'
+                                                    AND ConfigItems.fk_id_class = ?
                                                 ORDER BY hostname,attr_value';
+                        $query2_params = array($entry["fk_show_class_items"]);
                     }else{
                         #modify
                         $query2 = 'SELECT id_item,attr_value,
@@ -991,16 +1001,17 @@ if(
                                     WHERE id_item=fk_id_item
                                         AND id_attr=fk_id_attr
                                         AND naming_attr="yes"
-                                        AND id_item <> '.$_GET["id"].'
-                                        AND ConfigItems.fk_id_class='.$entry["fk_show_class_items"].'
+                                        AND id_item <> ?
+                                        AND ConfigItems.fk_id_class = ?
                                         AND (SELECT fk_id_item FROM ItemLinks,ConfigAttrs,ConfigClasses
                                                 WHERE id_attr=fk_id_attr
                                                 AND id_class=fk_id_class
-                                                AND config_class="'.$item_class.'"
+                                                AND config_class = ?
                                                 AND (attr_name="parents" OR attr_name="dependent_service_description")
-                                                AND fk_item_linked2="'.$_GET["id"].'"
+                                                AND fk_item_linked2 = ?
                                                 AND fk_id_item=id_item) IS NULL
                                     ORDER BY hostname,attr_value';
+                        $query2_params = array($_GET["id"], $entry["fk_show_class_items"], $item_class, $_GET["id"]);
                     }
                 }else{
                     if ($handle_action != "modify"){
@@ -1010,8 +1021,9 @@ if(
                                                 WHERE id_item=fk_id_item
                                                     AND id_attr=fk_id_attr
                                                     AND naming_attr="yes"
-                                                    AND ConfigItems.fk_id_class='.$entry["fk_show_class_items"].'
+                                                    AND ConfigItems.fk_id_class = ?
                                                 ORDER BY attr_value';
+                        $query2_params = array($entry["fk_show_class_items"]);
                     }else{
                         # modify
                         $query2 = 'SELECT id_item,attr_value
@@ -1019,20 +1031,21 @@ if(
                                     WHERE id_item=fk_id_item
                                         AND id_attr=fk_id_attr
                                         AND naming_attr="yes"
-                                        AND id_item <> '.$_GET["id"].'
-                                        AND ConfigItems.fk_id_class='.$entry["fk_show_class_items"].'
+                                        AND id_item <> ?
+                                        AND ConfigItems.fk_id_class = ?
                                         AND (SELECT fk_id_item FROM ItemLinks,ConfigAttrs,ConfigClasses
                                                 WHERE id_attr=fk_id_attr
                                                 AND id_class=fk_id_class
-                                                AND config_class="'.$item_class.'"
+                                                AND config_class = ?
                                                 AND (attr_name="parents" OR attr_name="dependent_service_description")
-                                                AND fk_item_linked2="'.$_GET["id"].'"
+                                                AND fk_item_linked2 = ?
                                                 AND fk_id_item=id_item) IS NULL
                                     ORDER BY attr_value';
+                        $query2_params = array($_GET["id"], $entry["fk_show_class_items"], $item_class, $_GET["id"]);
                     }
                 }
 
-                $result2 = db_handler($query2, "result", "assign_cust_order");
+                $result2 = db_handler($query2, "result", "assign_cust_order", $query2_params);
                 
                 # split predef value
                 $predef_value = preg_split("/".SELECT_VALUE_SEPARATOR."/", $entry["predef_value"]);

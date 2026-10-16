@@ -168,10 +168,10 @@ foreach ($array_ids as $id){
                     FROM ConfigAttrs,ConfigClasses
                     WHERE naming_attr="yes"
                         AND id_class=fk_id_class
-                        AND config_class="'.$config_class.'"
+                        AND config_class=?
                  ';
 
-        $id_naming_attr = db_handler($query, "getOne", "naming_attr ID:");
+        $id_naming_attr = db_handler($query, "getOne", "naming_attr ID:", array((string)$config_class));
 
         if ( isset($_POST[$id_naming_attr]) AND $config_class != "service"){
             # naming attr not allowed
