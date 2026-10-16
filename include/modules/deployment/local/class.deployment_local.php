@@ -23,7 +23,7 @@ class local extends NConf_Deployment_Modules
                 }
             }
         }
-        closedir($dir); 
+        closedir($dir);
 
         return $status;
     }
@@ -36,7 +36,6 @@ class local extends NConf_Deployment_Modules
             $status = FALSE;
         }
 
-        
         if ( (substr($host_infos["target_file"], -1) == "/") OR is_dir($host_infos["source_file"]) ){
             // force target directory if source is directory
             $dirname = dirname($host_infos["target_file"].'/.');
@@ -98,7 +97,6 @@ class local extends NConf_Deployment_Modules
             // no "$status =" because it doesn't matter when this fails
             $status_unlink = unlink($target_file_tar);
             NConf_HTML::set_info( NConf_HTML::table_row_check('PHP unlink:', $status_unlink, ' remove temporary file('.$target_file_tar.')' ), 'add' );
-            
 
         }elseif ($host_infos["action"] == "copy"){
             if (!empty($host_infos["source_file"]) && !empty($host_infos["target_file"])){
@@ -112,7 +110,7 @@ class local extends NConf_Deployment_Modules
                         $status = FALSE;
                     }else{
                         $status = TRUE;
-                    } 
+                    }
                     NConf_HTML::set_info( NConf_HTML::table_row_check('PHP copy:', $status, 'copy('.$host_infos["source_file"].', '.$host_infos["target_file"].')' ) , 'add' );
                 }
 

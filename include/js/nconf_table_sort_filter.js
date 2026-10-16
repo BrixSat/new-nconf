@@ -6,10 +6,9 @@
  * Self-contained: no jQuery dependency (the bundled jQuery is v1.5.1), injects
  * its own CSS, never inserts HTML built from cell contents.
  *
- * - Works only on rows already in the page: on paginated lists (overview.php)
- *   pick "all" to sort/filter across every entry.
- * - Header cells that already link somewhere (overview.php server-side ordering)
- *   keep their link, so those columns still sort across all pages on the server.
+ * - Works only on rows already in the page.
+ * - Header cells that already link somewhere keep their link, so the server
+ *   still orders those columns.
  * - Header cells spanning several columns (Actions), holding form controls
  *   (select-all checkbox) or marked data-no-sort-filter are left alone.
  * - Columns whose cells show only images (no visible text) get no filter box.
@@ -17,6 +16,16 @@
  *   rows instead of a text box; its options follow the other active filters.
  * - Rows joined by rowspan (inheritance preview) move and filter as one group.
  * - A whole table opts out with data-no-sort-filter on <table>.
+ *
+ * Server-side lists (overview.php) filter, sort and page in SQL instead:
+ *   <form id="f" data-server-side>  GET form owning the filter controls,
+ *                                   which join it via form="f"
+ *   data-list-part="f"              element swapped in place from the
+ *                                   server's response; never enhanced here
+ *   <a data-list-link>              sort/pager/size link inside a part,
+ *                                   loaded in place instead of navigating
+ * Typing or picking a filter reloads the parts, so the page does not flash;
+ * any failure falls back to a normal page load of the same URL.
  */
 (function () {
     'use strict';
@@ -24,6 +33,7 @@
     var ENHANCED_ATTR = 'data-ntsf';
     var OPT_OUT_ATTR  = 'data-no-sort-filter';
     var FILTER_DELAY  = 150; /* ms; keeps typing smooth on "all" with many rows */
+    var SERVER_FILTER_DELAY = 500; /* ms; one request per pause in typing, not per key */
 
     /* Each pair alternates per visible group so striping survives sort/filter. */
     var STRIPE_PAIRS = [['color_list1', 'color_list2'], ['odd', 'even']];
@@ -45,6 +55,7 @@
             + '.ntsf-ind{display:inline-block;width:1em;margin-left:3px;font-size:9px;opacity:0.4;}'
             + '.ntsf-sorted .ntsf-ind{opacity:1;}'
             + '.ntsf-filter-row td,.ntsf-filter-row th{padding:2px 3px;font-weight:normal;}'
+            + '.ntsf-loading{opacity:0.6;}'
             + '.ntsf-filter{box-sizing:border-box;width:100%;min-width:40px;padding:1px 4px;'
             +   'border:1px solid #7f9db9;border-radius:2px;font:inherit;font-size:11px;}';
         var style = document.createElement('style');
@@ -178,6 +189,8 @@
 
     function enhance(table) {
         if (table.hasAttribute(ENHANCED_ATTR) || table.hasAttribute(OPT_OUT_ATTR)) { return; }
+        /* Server-side lists hold one page only; filtering it here would hide matches on other pages. */
+        if (table.hasAttribute('data-list-part')) { return; }
         var thead = table.tHead;
         var tbody = table.tBodies[0];
         if (!thead || !tbody || !thead.rows.length) { return; }
@@ -386,9 +399,127 @@
         }
     }
 
+    /* The control's own form, when that form drives a server-side list. */
+    function serverForm(control) {
+        var form = control && control.form;
+        return (form && form.hasAttribute('data-server-side')) ? form : null;
+    }
+
+    function serverUrl(form) {
+        /* FormData includes controls that join the form through form="". */
+        var query = new URLSearchParams(new FormData(form)).toString();
+        return form.action.split('?')[0] + '?' + query;
+    }
+
+    function listParts(form) {
+        return document.querySelectorAll('[data-list-part="' + form.id + '"]');
+    }
+
+    /* The user may type on while a request runs: keep their text, not the server's older copy. */
+    function captureFocus(form) {
+        var el = document.activeElement;
+        if (!el || el.form !== form || el.tagName !== 'INPUT' || !el.name) { return null; }
+        return { name: el.name, value: el.value, start: el.selectionStart, end: el.selectionEnd };
+    }
+
+    function restoreFocus(form, saved) {
+        if (!saved) { return; }
+        var el = form.elements.namedItem(saved.name);
+        if (!el || el.tagName !== 'INPUT') { return; }
+        el.value = saved.value;
+        el.focus();
+        try { el.setSelectionRange(saved.start, saved.end); } catch (ignore) { /* type without a caret */ }
+    }
+
+    /* Swaps every part, or none: a response missing one is not the list (e.g. the login page). */
+    function swapParts(form, doc) {
+        var parts = listParts(form);
+        var fresh = [];
+        for (var i = 0; i < parts.length; i++) {
+            var next = parts[i].id ? doc.getElementById(parts[i].id) : null;
+            if (!next) { return false; }
+            fresh.push(next);
+        }
+        if (!parts.length) { return false; }
+
+        var saved = captureFocus(form);
+        for (var j = 0; j < parts.length; j++) {
+            parts[j].parentNode.replaceChild(document.adoptNode(fresh[j]), parts[j]);
+        }
+        restoreFocus(form, saved);
+        return true;
+    }
+
+    function initServerSide() {
+        var timer = null;
+        var latest = 0;
+
+        function load(form, url) {
+            var id = ++latest;
+            clearTimeout(timer);
+            Array.prototype.forEach.call(listParts(form), function (part) {
+                part.classList.add('ntsf-loading');
+                part.setAttribute('aria-busy', 'true');
+            });
+            fetch(url, { credentials: 'same-origin' })
+                .then(function (res) {
+                    if (!res.ok) { throw new Error('HTTP ' + res.status); }
+                    return res.text();
+                })
+                .then(function (html) {
+                    /* An answer to an older request would undo what the user did since. */
+                    if (id !== latest) { return; }
+                    var doc = new DOMParser().parseFromString(html, 'text/html');
+                    if (!swapParts(form, doc)) { throw new Error('list missing from response'); }
+                    /* Reload and the edit pages' "back" then return to this exact list. */
+                    history.replaceState(null, '', url);
+                })
+                .catch(function () {
+                    /* A full load shows whatever the server answered: error, login, the list. */
+                    if (id === latest) { window.location.href = url; }
+                });
+        }
+
+        /* Text filters: wait for a pause in typing. */
+        document.addEventListener('input', function (e) {
+            var form = serverForm(e.target);
+            if (!form || e.target.tagName !== 'INPUT') { return; }
+            clearTimeout(timer);
+            timer = setTimeout(function () { load(form, serverUrl(form)); }, SERVER_FILTER_DELAY);
+        });
+
+        /* Dropdown filters, including picks made in the searchable-select widget. */
+        document.addEventListener('change', function (e) {
+            var form = serverForm(e.target);
+            if (form && e.target.tagName === 'SELECT') { load(form, serverUrl(form)); }
+        });
+
+        document.addEventListener('submit', function (e) {
+            var form = e.target;
+            if (!form.hasAttribute || !form.hasAttribute('data-server-side')) { return; }
+            e.preventDefault();
+            load(form, serverUrl(form));
+        });
+
+        document.addEventListener('click', function (e) {
+            /* Modified clicks keep their browser meaning (new tab, new window). */
+            if (e.defaultPrevented || e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) { return; }
+            var link = e.target.closest && e.target.closest('a[data-list-link][href]');
+            var part = link && link.closest('[data-list-part]');
+            var form = part && document.getElementById(part.getAttribute('data-list-part'));
+            if (!form || !form.hasAttribute('data-server-side')) { return; }
+            e.preventDefault();
+            load(form, link.href);
+        });
+    }
+
     function init() {
         injectStyles();
         enhanceAll(document);
+        /* Older browsers keep working through plain links and the form's GET submit. */
+        if (window.fetch && window.DOMParser && window.URLSearchParams && window.history.replaceState) {
+            initServerSide();
+        }
     }
 
     if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', init); }

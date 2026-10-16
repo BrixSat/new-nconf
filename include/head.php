@@ -182,7 +182,7 @@ $NConf_PERMISSIONS = new NConf_PERMISSIONS;
 				<col width="50px">
 			  </colgroup>
                 <tr>
-                    <td>Welcome&nbsp;<?php if( isset($_SESSION["userinfos"]['username']) ) echo $_SESSION["userinfos"]['username']; ?></td>
+                    <td>Welcome<?php if( isset($_SESSION["userinfos"]['username']) ) echo ',&nbsp;'.htmlspecialchars($_SESSION["userinfos"]['username'], ENT_QUOTES | ENT_HTML5, 'UTF-8'); ?></td>
                     <td><div align="center"><a title="Get help on nconf.org" class="jQ_tooltip" href="http://www.nconf.org/dokuwiki/doku.php?id=nconf:help:main" target="_blank">[ Help ]</a></div></td>
 					<td><div align="center"><a title="See the CHANGELOG for recent changes" class="jQ_tooltip" href="CHANGELOG" target="_blank">[ ChangeLog ]</a></div></td>
                 </tr>

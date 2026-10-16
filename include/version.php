@@ -2,9 +2,9 @@
 #
 # File for Version number and info
 #
-define("VERSION_NUMBER", '2.01.000');
+define("VERSION_NUMBER", '2.02.000');
 define("VERSION_STRING", '<img src="design_templates/nconf_fresh/nconf-logo-16.gif" style="vertical-align:bottom" alt="nconf-logo">
-                          <b>NConf '.VERSION_NUMBER.'</b>');
+                          <b>NConf '.VERSION_NUMBER.' (César Araújo & Mauro Maia)</b>');
 #define("VERSION_STRING", '<img src="design_templates/nconf_fresh/nconf-logo-16.gif" style="vertical-align:bottom" alt="nconf-logo">
 #                          <b>NConf '.VERSION_NUMBER.' (final)</b>');
 

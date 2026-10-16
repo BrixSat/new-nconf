@@ -18,34 +18,7 @@ if ( !isset($_GET["goto"]) ){
     $request_url = $_SESSION["go_back_page"];
 }
 
-if ( !empty($_GET["order"]) ){
-    $regex = '/&order=[^&]*/';
-    $request_url4ordering = preg_replace($regex, '', $request_url);
-}else{
-    $request_url4ordering = $request_url;
-}
-if ( !empty($_GET["start"]) ){
-    $regex = '/&start=[^&]*/';
-    $request_url4limit = preg_replace($regex, '', $request_url);
-    $request_url4ordering = preg_replace($regex, '', $request_url4ordering);
-    $request_url4form = $request_url4ordering;
-}else{
-    $request_url4limit= $request_url;
-    $request_url4form = $request_url4ordering;
-}
-# Quantity
-if ( !empty($_GET["quantity"]) ){
-    $regex = '/&quantity=[^&]*/';
-    $request_url4quantity = preg_replace($regex, '', $request_url);
-}else{
-    $request_url4quantity = $request_url;
-}
-
-
-
-
-
-
+require_once 'include/overview_list.php';
 
 
 # set Filters
@@ -61,34 +34,62 @@ if (isset($_GET["xmode"]) && $_GET["xmode"] == "pikett"){
 
 
 
-# saved/cached ordering
-if ( isset($_GET["order"]) ) {
-    $order = $_GET["order"];
-    $_SESSION["cache"][$class]["searchfilter"]["order"] = $order;
-}elseif ( isset($_SESSION["cache"][$class]["searchfilter"]["order"]) ) {
-    $order = $_SESSION["cache"][$class]["searchfilter"]["order"];
-}else{
-    $order = "";
-}
+# order, page size and filters are saved per class, so the list looks the same when coming back to it
+$saved_list = isset($_SESSION["cache"][$class]["searchfilter"]) && is_array($_SESSION["cache"][$class]["searchfilter"])
+    ? $_SESSION["cache"][$class]["searchfilter"]
+    : array();
 
-
-
-# quantity
-# how many entries to show
-if ( isset($_GET["quantity"]) ) {
-    $show_quantity = $_GET["quantity"];
-    $_SESSION["cache"][$class]["searchfilter"]["quantity"] = $show_quantity;
-}elseif ( isset($_SESSION["cache"][$class]["searchfilter"]["quantity"]) ) {
-    $show_quantity = $_SESSION["cache"][$class]["searchfilter"]["quantity"];
-}else{
-    if ( defined('OVERVIEW_QUANTITY_STANDARD') ){
-        $show_quantity = OVERVIEW_QUANTITY_STANDARD;
-    }else{
-        $show_quantity = '';
+# ordering: goes into the SQL as is, so only values listed in overview_orders() are accepted
+$allowed_orders = overview_orders($class);
+$order = $allowed_orders[0];
+foreach ( array($_GET["order"] ?? null, $saved_list["order"] ?? null) as $requested_order ){
+    if ( is_string($requested_order) && in_array($requested_order, $allowed_orders, true) ){
+        $order = $requested_order;
+        break;
     }
 }
-# handle "all" (empty variable will show all entries)
-if ($show_quantity == "all") $show_quantity = '';
+
+# quantity: rows per page, "all" = no paging; an empty or unset OVERVIEW_QUANTITY_STANDARD means all
+$default_quantity = 'all';
+if ( defined('OVERVIEW_QUANTITY_STANDARD') && ctype_digit((string)OVERVIEW_QUANTITY_STANDARD)
+    && (int)OVERVIEW_QUANTITY_STANDARD > 0 ){
+    $default_quantity = (string)(int)OVERVIEW_QUANTITY_STANDARD;
+}
+$allowed_quantities = array_unique(array(QUANTITY_SMALL, QUANTITY_MEDIUM, QUANTITY_LARGE, 'all', $default_quantity));
+$show_quantity = $default_quantity;
+foreach ( array($_GET["quantity"] ?? null, $saved_list["quantity"] ?? null) as $requested_quantity ){
+    if ( is_string($requested_quantity) && in_array($requested_quantity, $allowed_quantities, true) ){
+        $show_quantity = $requested_quantity;
+        break;
+    }
+}
+$page_size = ($show_quantity === 'all') ? 0 : (int)$show_quantity;
+
+# column filters: a request carrying filter[] replaces the saved set, even when every value is empty
+$overview_columns = overview_columns($class);
+$filters = overview_parse_filters(
+    isset($_GET["filter"]) ? $_GET["filter"] : ($saved_list["filter"] ?? array()),
+    $overview_columns
+);
+
+# start is not saved: a changed filter or order should begin at the first page
+$start = filter_var($_GET["start"] ?? 0, FILTER_VALIDATE_INT, array('options' => array('min_range' => 0)));
+if ($start === FALSE) $start = 0;
+
+$_SESSION["cache"][$class]["searchfilter"] = array(
+    "order"    => $order,
+    "quantity" => $show_quantity,
+    "filter"   => $filters,
+);
+
+# every list link is built from this state; empty filters are left out to keep the links short
+$list_state = array('class' => $class);
+if (isset($_GET["xmode"]) && $_GET["xmode"] == "pikett"){
+    $list_state['xmode'] = 'pikett';
+}
+$list_state['order']    = $order;
+$list_state['quantity'] = $show_quantity;
+$list_state['filter']   = array_filter($filters, static fn($value) => $value !== '');
 
 
 
@@ -135,8 +136,9 @@ if ( (defined('CMDB_SERVERLIST_COMPARE') AND CMDB_SERVERLIST_COMPARE == 1) AND (
             $('#advanced').submit();
         });
 
+        // live(): the list table is replaced in place on every filter, sort or page change
         // Checkbox selection with textlink
-        $('#text_selectall').click(function() {
+        $('#text_selectall').live('click', function() {
             var all_checked = $('#checkbox_selectall').attr('checked');
             if (all_checked){
                 $("#checkbox_selectall").attr('checked', false);
@@ -149,22 +151,16 @@ if ( (defined('CMDB_SERVERLIST_COMPARE') AND CMDB_SERVERLIST_COMPARE == 1) AND (
         });
 
         // Checkbox selection with checkbox
-        $('#checkbox_selectall').click(function() {
+        $('#checkbox_selectall').live('click', function() {
             update_checkboxes();
         });
 
+        // only the list's own checkboxes: the page holds just the current page of rows
         function update_checkboxes(){
-            $("input:checkbox").attr('checked', $('#checkbox_selectall').is(':checked') );
+            $('input:checkbox[name="advanced_items[]"]').attr('checked', $('#checkbox_selectall').is(':checked'));
         }
 
 
-
-
-        // BUTTONS
-
-        // Disable buttons if not needed
-        $( "#overview_navigation .disabled > img" ).removeClass("pointer");
-        $( "#overview_navigation .disabled" ).removeAttr("href");
 
     });
 </script>
@@ -201,8 +197,11 @@ echo NConf_HTML::page_title($class, '');
 echo '</div>';
 
 
+# filter controls live in the list table and join this form via form="", since forms cannot nest
+echo '<form id="'.OVERVIEW_FILTER_FORM.'" method="get" action="overview.php" data-server-side></form>';
+
 # open new form
-echo '<form id="advanced" name="advanced" action="'.$request_url4form.'" method="post">';
+echo '<form id="advanced" name="advanced" action="'.htmlspecialchars($request_url, ENT_QUOTES | ENT_HTML5, 'UTF-8').'" method="post">';
 
 # set class for submit form
 if (!empty($class) ){
@@ -214,18 +213,11 @@ if (!empty($class) ){
 
 if( ( isset($class) ) AND ($class != "") ){
 
-    # handle start
-    if (empty($_GET["start"]) OR $_GET["start"] < 0 ){
-        $start = 0;
-    }else{
-        $start = $_GET["start"];
-    }
-
     # Querys
     if ($class == "host") {
 
         $query = '
-    SELECT SQL_CALC_FOUND_ROWS
+    SELECT
        fk_id_item AS host_id,
        attr_value AS hostname,
        (SELECT attr_value 
@@ -281,36 +273,11 @@ if( ( isset($class) ) AND ($class != "") ){
            AND config_class="'.$class.'"';
 
 
-        # Handle order
-        if (!empty($order) ){
-            $query .= ' ORDER BY '.$order;
-        }else{
-            $order = 'hostname ASC';
-            $query .= ' ORDER BY '.$order;
-        }
-
-        # LIMIT
-        if ( !empty($show_quantity) ){
-            # lookup how many entries are totaly
-            if ($start < 0) $start = 0;
-            
-            
-            # make limited query
-            $query .= ' LIMIT '.$start.' , '.$show_quantity;
-        }
-
-        # result for overview list
-        $result = db_handler($query, 'result', "Overview list");
-
-        # amount of total entries (with a sql function)
-        $show_num_rows = $show_num_rows2 = db_handler('SELECT FOUND_ROWS();', 'getOne', "How many rows totaly");
-
-
     }else{
         # class != "host"
         if ($class == "checkcommand"){
             # special query for checkcommand and its default service name
-            $query = 'SELECT SQL_CALC_FOUND_ROWS
+            $query = 'SELECT
                 id_item,
                 attr_value AS entryname,
                 (SELECT attr_value
@@ -334,13 +301,9 @@ if( ( isset($class) ) AND ($class != "") ){
                     AND naming_attr="yes"
                     AND ConfigItems.fk_id_class=id_class
                     AND config_class="'.$class.'"';
-            # define special ordering
-            if( empty($order) ){
-                $order = "entryname ASC";
-            }
         }elseif($class == "service"){
             # special query for service and its hostnames
-            $query = 'SELECT SQL_CALC_FOUND_ROWS
+            $query = 'SELECT
                     id_item,
                     attr_value AS entryname,
                     (SELECT attr_value FROM ConfigValues,ConfigAttrs,ConfigClasses,ItemLinks
@@ -362,7 +325,7 @@ if( ( isset($class) ) AND ($class != "") ){
                         AND ConfigItems.fk_id_class=id_class
                         AND config_class="'.$class.'"';
         }else{
-            $query = 'SELECT SQL_CALC_FOUND_ROWS
+            $query = 'SELECT
                     id_item,
                     attr_value AS entryname
                     FROM ConfigItems,ConfigValues,ConfigAttrs,ConfigClasses
@@ -391,38 +354,21 @@ if( ( isset($class) ) AND ($class != "") ){
             }
         }
 
-        # Handle order
-        if ($class == "service"){
-            # define special ordering
-            if( empty($order) ){
-                $order = "hostname ASC, entryname ASC";
-            }
-        }
-
-        if (!empty($order) ){
-            $query .= ' ORDER BY '.$order;
-        }else{
-            $order = 'entryname ASC';
-            $query .= ' ORDER BY '.$order;
-        }
-
-
-        # LIMIT
-        if ( !empty($show_quantity) ){
-            # lookup how many entries are totaly
-            if ($start < 0) $start = 0;
-
-            # make limited query
-            $query .= ' LIMIT '.$start.' , '.$show_quantity;
-        }
-
-        # result for overview list
-        $result = db_handler($query, 'result', "Overview list");
-
-        # amount of total entries (with a sql function)
-        $show_num_rows = $show_num_rows2 = db_handler('SELECT FOUND_ROWS();', 'getOne', "How many rows totaly");
-        
     }
+
+    # filter, order and page in SQL; $order is from overview_orders(), the id makes the order unique
+    $id_column = ($class == "host") ? 'host_id' : 'id_item';
+    $overview_page = overview_fetch_page(
+        $dbh,
+        $query,
+        $overview_columns,
+        $filters,
+        $order.', '.$id_column.' ASC',
+        $start,
+        $page_size
+    );
+    $result = $overview_page->rows;
+    $start  = $overview_page->start;
 
 
     # overview table in IE 8 will only do correct margin-top when previouse element has clear:both
@@ -432,13 +378,15 @@ if( ( isset($class) ) AND ($class != "") ){
     ##
     # show quantity
     ##
+    # data-list-part: nconf_table_sort_filter.js swaps this table in place when the list changes
+    $list_part = ' data-list-part="'.OVERVIEW_FILTER_FORM.'"';
     if ($class == "host"){
-        echo '<table class="overview_head" style="width: 100%;">';
+        echo '<table id="overview_head" class="overview_head" style="width: 100%;"'.$list_part.'>';
     }else{
         $table_width = 450;
         if ($class == "service") $table_width = 500;
 
-        echo '<table class="overview_head" style="width: '.$table_width.'px;">';
+        echo '<table id="overview_head" class="overview_head" style="width: '.$table_width.'px;"'.$list_part.'>';
     }
 
         echo '<tr>';
@@ -447,57 +395,41 @@ if( ( isset($class) ) AND ($class != "") ){
                 <h2 class="content_header">Overview</h2>
               </td>';
 
-        if ( !empty($show_quantity) ){
+        # pager: plain links carrying the whole list state; a missing link means that arrow is disabled
+        $total      = $overview_page->total;
+        $show_first = ($total > 0) ? $start + 1 : 0;
+        $show_last  = ($page_size > 0) ? min($start + $page_size, $total) : $total;
+        $has_prev   = $start > 0;
+        $has_next   = $page_size > 0 && $start + $page_size < $total;
+        $last_start = ($page_size > 0 && $total > 0) ? intdiv($total - 1, $page_size) * $page_size : 0;
 
-            ###
-            # show limited entries, make it swap'able
-            ###
-            $show_first = 0;
-            $show_next = $start + $show_quantity;
-            $show_prev = $start - $show_quantity; 
-            $show_last = $show_num_rows - $show_quantity;
+        echo '<td id="overview_navigation" style="text-align: center; vertical-align: middle">';
+            echo overview_pager_link('2first', ICON_LEFT_FIRST_ANIMATED,
+                $has_prev ? overview_url($list_state, array('start' => 0)) : null);
+            echo overview_pager_link('2previouse', ICON_LEFT_ANIMATED,
+                $has_prev ? overview_url($list_state, array('start' => max(0, $start - $page_size))) : null);
+            echo '<span> Entries '.$show_first.' - '.$show_last.' of '.$total;
+            if ($total !== $overview_page->unfiltered){
+                echo ' (filtered from '.$overview_page->unfiltered.')';
+            }
+            echo ' </span>';
+            echo overview_pager_link('2next', ICON_RIGHT_ANIMATED,
+                $has_next ? overview_url($list_state, array('start' => $start + $page_size)) : null);
+            echo overview_pager_link('2last', ICON_RIGHT_LAST_ANIMATED,
+                $has_next ? overview_url($list_state, array('start' => $last_start)) : null);
+        echo '</td>';
 
-            if ($show_prev < 0) $show_prev = 0;
-            if ($show_next > $show_num_rows) $show_next = $show_num_rows;
-            $show_start = $start + 1;
-            # no results mean no start at 0 not 1
-            if ($show_num_rows == 0) $show_start = 0;
-
-            echo '<td id="overview_navigation" style="text-align: center; vertical-align: middle">';
-                if ($show_start === 1 OR $show_start === 0){
-                    $if_disabled = 'class="disabled"';
+        # selectable quantity; changing it goes back to the first page
+        echo '<td class="overview_quantity" width="20%">';
+            foreach ( array(QUANTITY_SMALL, QUANTITY_MEDIUM, QUANTITY_LARGE, 'all') as $quantity ){
+                if ($quantity === $show_quantity){
+                    echo '<span aria-current="true">'.$quantity.'</span>';
                 }else{
-                    $if_disabled = '';
+                    $quantity_url = htmlspecialchars(overview_url($list_state, array('quantity' => $quantity)), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                    echo '<a href="'.$quantity_url.'" data-list-link>'.$quantity.'</a>';
                 }
-                echo '<a id="2first"     '.$if_disabled.' href="'.$request_url4limit.'&start='.$show_first.'">'.ICON_LEFT_FIRST_ANIMATED.'</a>';
-                echo '<a id="2previouse" '.$if_disabled.' href="'.$request_url4limit.'&start='.$show_prev.'">'.ICON_LEFT_ANIMATED.'</a>';
-
-                echo '<span> Entries '.$show_start.' - '.$show_next.' of '.$show_num_rows.' </span>';
-
-                if ($show_next == $show_num_rows){
-                    $if_disabled = 'class="disabled"';
-                }else{
-                    $if_disabled = '';
-                }
-                echo '<a id="2next" '.$if_disabled.' href="'.$request_url4limit.'&start='.$show_next.'">'.ICON_RIGHT_ANIMATED.'</a>';
-                echo '<a id="2last" '.$if_disabled.' href="'.$request_url4limit.'&start='.$show_last.'">'.ICON_RIGHT_LAST_ANIMATED.'</a>';
-            echo '</td>';
-        }else{
-            echo '<td>&nbsp;</td>';
-        }
-
-
-
-
-        # selectable quantity
-        echo '<td class="overview_quantity"  width="20%">';
-            echo ($show_quantity != QUANTITY_SMALL) ?  '<a href="'.$request_url4quantity.'&quantity='.QUANTITY_SMALL.'">'.QUANTITY_SMALL.'</a>' : QUANTITY_SMALL;
-            echo '&nbsp;&nbsp;';
-            echo ($show_quantity != QUANTITY_MEDIUM) ? '<a href="'.$request_url4quantity.'&quantity='.QUANTITY_MEDIUM.'">'.QUANTITY_MEDIUM.'</a>' : QUANTITY_MEDIUM;
-            echo '&nbsp;&nbsp;';
-            echo ($show_quantity != QUANTITY_LARGE) ?  '<a href="'.$request_url4quantity.'&quantity='.QUANTITY_LARGE.'">'.QUANTITY_LARGE.'</a>' : QUANTITY_LARGE;
-            echo '&nbsp;&nbsp;';
-            echo ($show_quantity != "") ?  '<a href="'.$request_url4quantity.'&quantity=all">all</a>' : 'all';
+                echo '&nbsp;&nbsp;';
+            }
         echo '</td>';
 
 
@@ -510,7 +442,7 @@ if( ( isset($class) ) AND ($class != "") ){
     # list table and the advanced actions box side by side
     echo '<div class="overview-body">';
     if ($class == "host"){
-        echo '<table class="ui-nconf-table ui-nconf-max-width ui-widget ui-widget-content">';
+        echo '<table id="overview_list" class="ui-nconf-table ui-nconf-max-width ui-widget ui-widget-content"'.$list_part.'>';
         echo '<colgroup>
                 <col width="30">
                 <col>
@@ -525,7 +457,7 @@ if( ( isset($class) ) AND ($class != "") ){
     }else{
         $table_width = 450;
         if ($class == "service") $table_width = 500;
-        echo '<table class="ui-nconf-table ui-widget ui-widget-content" style="min-width:400px" width="'.$table_width.'">';
+        echo '<table id="overview_list" class="ui-nconf-table ui-widget ui-widget-content" style="min-width:400px" width="'.$table_width.'"'.$list_part.'>';
 
         echo '<colgroup>';
             echo '<col>';
@@ -554,7 +486,11 @@ if( ( isset($class) ) AND ($class != "") ){
         if ($class == "host") {
             echo '<td width="30">'.FRIENDLY_NAME_OS_LOGO.'</td>';
         }
+        $name_label = $class;
         while($entry = mysqli_fetch_assoc($title_result)){
+            $name_label = strip_tags($entry["friendly_name"]);
+            # only hosts are sortable by more than one column; other lists always show their sort mark
+            $direction = overview_sort_direction($order, ($class == "host") ? 'hostname' : null);
             if ($class == "host"){
                 $order_value = (!empty($order) AND $order ==  "hostname ASC") ? 'hostname DESC' : 'hostname ASC';
             }elseif ($class == "checkcommand"){
@@ -585,28 +521,34 @@ if( ( isset($class) ) AND ($class != "") ){
             }else{
                 $order_value = (!empty($order) AND $order ==  "entryname ASC") ? 'entryname DESC' : 'entryname ASC';
             }
-            echo '<td>
-                <a href="'.$request_url4ordering.'&order='.$order_value.'">'
-                .$entry["friendly_name"].
-                '</a></td>';
+            echo overview_header_cell(
+                $entry["friendly_name"],
+                overview_url($list_state, array('order' => $order_value)),
+                $direction
+            );
         }
         if ($class == "host") {
             $order_value = ($order ==  "BIN_IP ASC") ? 'BIN_IP DESC' : 'BIN_IP ASC';
-            echo '<td width=100>
-                <a href="'.$request_url4ordering.'&order='.$order_value.'">'
-                .FRIENDLY_NAME_IPADDRESS.
-                '</a></td>';
+            echo overview_header_cell(
+                FRIENDLY_NAME_IPADDRESS,
+                overview_url($list_state, array('order' => $order_value)),
+                overview_sort_direction($order, 'BIN_IP'),
+                ' width=100'
+            );
             $order_value = ($order ==  "collector ASC") ? 'collector DESC' : 'collector ASC';
-            # data-filter="select": the client-side filter offers the values present in the list
-            echo '<td width=100 data-filter="select">
-                <a href="'.$request_url4ordering.'&order='.$order_value.'">'
-                .FRIENDLY_NAME_NAGIOSSERVER.
-                '</a></td>';
+            echo overview_header_cell(
+                FRIENDLY_NAME_NAGIOSSERVER,
+                overview_url($list_state, array('order' => $order_value)),
+                overview_sort_direction($order, 'collector'),
+                ' width=100'
+            );
             $order_value = ($order ==  "os ASC") ? 'os DESC' : 'os ASC';
-            echo '<td width=100 data-filter="select">
-                <a href="'.$request_url4ordering.'&order='.$order_value.'">'
-                .FRIENDLY_NAME_OS.
-                '</a></td>';
+            echo overview_header_cell(
+                FRIENDLY_NAME_OS,
+                overview_url($list_state, array('order' => $order_value)),
+                overview_sort_direction($order, 'os'),
+                ' width=100'
+            );
         }
 
         if ($class == "host") {
@@ -623,6 +565,55 @@ if( ( isset($class) ) AND ($class != "") ){
         }
 
     echo "</tr>";
+
+    # filter row; the hidden fields carry the rest of the list state, so Enter filters even without JS
+    $filter_state = '';
+    foreach ( array_diff_key($list_state, array('filter' => TRUE)) as $state_name => $state_value ){
+        $filter_state .= '<input type="hidden" form="'.OVERVIEW_FILTER_FORM.'"'
+            .' name="'.htmlspecialchars($state_name, ENT_QUOTES | ENT_HTML5, 'UTF-8').'"'
+            .' value="'.htmlspecialchars($state_value, ENT_QUOTES | ENT_HTML5, 'UTF-8').'">';
+    }
+    # off-screen rather than hidden: a form with several text boxes only submits on Enter if it has a submit button
+    $filter_state .= '<button type="submit" form="'.OVERVIEW_FILTER_FORM.'" tabindex="-1" aria-hidden="true"'
+        .' style="position:absolute;left:-9999px">filter</button>';
+
+    $filter_labels = array(
+        'name'      => $name_label,
+        'ip'        => strip_tags(FRIENDLY_NAME_IPADDRESS),
+        'collector' => strip_tags(FRIENDLY_NAME_NAGIOSSERVER),
+        'os'        => strip_tags(FRIENDLY_NAME_OS),
+    );
+    $filter_cells = array();
+    foreach ($overview_columns as $column_key => $column){
+        $filter_cells[] = overview_filter_control(
+            $column,
+            $filters[$column_key],
+            $overview_page->options[$column_key] ?? array(),
+            $filter_labels[$column_key]
+        );
+    }
+
+    echo '<tr class="ntsf-filter-row">';
+        if ($class == "host") {
+            # OS logo column: icons only, nothing to filter on
+            echo '<td>'.$filter_state.'</td>';
+        }else{
+            $filter_cells[0] = $filter_state.$filter_cells[0];
+        }
+        foreach ($filter_cells as $filter_cell){
+            echo '<td>'.$filter_cell.'</td>';
+        }
+        if ($class == "host") {
+            echo '<td colspan="4"></td>';
+        }elseif(!isset($_GET["xmode"])){
+            echo '<td colspan="2"></td>';
+        }else{
+            echo '<td colspan="1"></td>';
+        }
+        if ( !isset($_GET["xmode"]) ){
+            echo '<td></td>';
+        }
+    echo '</tr>';
 
     echo '</thead>';
     echo '<tbody class="ui-widget-content">';
@@ -660,7 +651,7 @@ if( ( isset($class) ) AND ($class != "") ){
                         echo '<tr class="'.$bgcolor.' highlight">';
                     }else{
                         echo '<tr class="ui-state-error highlight">';
-                        $entry["collector"] = "not monitored";
+                        $entry["collector"] = OVERVIEW_NOT_MONITORED;
                         $nocol_style = 'class="color_nomon_text"';
                     }
                 }

@@ -63,7 +63,7 @@ if ( $class == "service" ){
             }elseif ( $class == "hostgroup_service" ){
                 echo '<th>'.FRIENDLY_NAME_HOSTGROUP.'</th>';
             }
-        echo '</tr>'; 
+        echo '</tr>';
     echo '</thead>';
 
     echo '<tbody class="ui-widget-content">';
