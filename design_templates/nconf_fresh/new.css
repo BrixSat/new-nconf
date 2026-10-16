@@ -34,7 +34,8 @@ body {
   background-image: url(nc-logo.gif);
   background-repeat: no-repeat;
   height: 97px;
-  width: 986px;
+  /* the logo image sits at the left, in line with the menu below it */
+  width: 100%;
 }
 
 #titlesub {
@@ -51,11 +52,17 @@ body {
   color: white;
   font-weight: bold;
   text-indent: 0;
-  width: 986px;
+  width: 100%;
 }
 
 #titlesub table td {
   text-align: left;
+  white-space: nowrap;
+}
+
+/* "Welcome" takes what is left (beats the 600px col attribute), so Help/ChangeLog never wrap */
+#titlesub col:first-child {
+  width: auto;
 }
 
 body {
@@ -69,11 +76,20 @@ body {
 #mainwindow {
   background-color: transparent;
   height: auto !important;
-  margin: 10px auto 0;
+  margin: 10px 10px 0;
   min-height: 535px;
-  min-width: 1000px;
   text-align: left;
-  width: 1000px;
+  /* full window width: lists use wide screens and shrink with narrow ones (e.g. half-screen) */
+  width: auto;
+  /* menu, gap and content side by side; flex lets the content centre in the space left of the menu */
+  display: flex;
+  align-items: flex-start;
+}
+
+/* fixed widths: only the content gives way when the window is narrow */
+#navigation,
+#mainspace {
+  flex-shrink: 0;
 }
 
 #navigation {
@@ -161,12 +177,40 @@ a {
   padding-top: 3px;
   position: relative;
   text-align: left;
-  width: 778px;
+  /* as wide as its content and centred in what the menu and #mainspace gap leave */
+  width: auto;
+  min-width: 0;
+  flex: 0 1 auto;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 /*
 #maincontent h2{
 */
+/* side box (detail History, services "advanced clone"): a row of content then box, so narrow
+   windows shrink the content instead of the box covering it or dropping above it */
+#maincontent:has(> .tab_advanced),
+#maincontent:has(> #ui-nconf-icon-bar) {
+  display: flex;
+  flex-direction: row-reverse;
+  align-items: flex-start;
+}
+
+#maincontent > .tab_advanced,
+#maincontent > #ui-nconf-icon-bar {
+  position: static;
+  flex: 0 0 auto;
+  margin-left: 20px;
+}
+
+/* the page's own fixed width (500/510px inline) becomes a maximum it may shrink from */
+#maincontent > .tab_advanced ~ .relative,
+#maincontent > #ui-nconf-icon-bar ~ .relative {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
 .content_header, #maincontent > h2 {
   margin-bottom: 5px;
   margin-top: 0;
@@ -189,7 +233,7 @@ a {
   margin-right: auto;
   margin-top: 15px;
   text-align: left;
-  width: 1000px;
+  width: auto;
 }
 
 #footer div {
@@ -346,23 +390,45 @@ pre {
   padding-left: 10px;
 }
 
-/* advanced actions box sits right of the list table instead of pinned to the page corner */
+/* actions box above the list on the right, next to the "select" column it acts on */
 .overview-body {
   display: flex;
+  flex-direction: column;
   align-items: flex-start;
-}
-
-/* a 100% wide list (hosts) would push the actions box off-screen; take the remaining space instead */
-.overview-body > .ui-nconf-max-width {
-  width: auto;
-  flex: 1 1 auto;
 }
 
 #advanced .overview-body #ui-nconf-icon-bar {
   position: static;
-  flex: 0 0 auto;
-  margin-top: 0;
-  margin-left: 10px;
+  order: -1;
+  align-self: flex-end;
+  margin: 0 0 4px;
+}
+
+/* hosts: only as wide as the content needs, and never wider than the window */
+#overview_list.ui-nconf-max-width {
+  width: auto;
+  max-width: 100%;
+}
+
+/* long host names and addresses wrap rather than push the list off-screen */
+#overview_list td {
+  overflow-wrap: anywhere;
+  padding-right: 8px;
+}
+
+/* filter boxes fill their column; !important beats the width the searchable select sets inline */
+#overview_list .ntsf-filter,
+#overview_list .nsel-wrap,
+#overview_list .nsel-control {
+  box-sizing: border-box;
+  min-width: 0 !important;
+  width: 100%;
+}
+
+/* dropdowns open leftwards, so the last column's list stays inside the window */
+#overview_list .nsel-panel {
+  left: auto;
+  right: 0;
 }
 
 .overview-add a {

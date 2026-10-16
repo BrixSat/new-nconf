@@ -336,7 +336,8 @@ function overview_filter_control(OverviewColumn $column, string $value, array $c
         . ' aria-label="' . $esc('Filter ' . $label) . '"';
 
     if (!$column->isSelect) {
-        return '<input type="search"' . $common . ' value="' . $esc($value) . '" placeholder="filter">';
+        // size="1": the column's data, not the box's default width, decides how wide the column is
+        return '<input type="search"' . $common . ' value="' . $esc($value) . '" placeholder="filter" size="1">';
     }
 
     // a chosen value stays listed even when the other filters leave no rows for it

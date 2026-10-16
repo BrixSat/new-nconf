@@ -443,15 +443,18 @@ if( ( isset($class) ) AND ($class != "") ){
     echo '<div class="overview-body">';
     if ($class == "host"){
         echo '<table id="overview_list" class="ui-nconf-table ui-nconf-max-width ui-widget ui-widget-content"'.$list_part.'>';
+        # one col per column; data columns size to their content (percentages would stretch the table)
         echo '<colgroup>
-                <col width="30">
+                <col style="width: 28px">
                 <col>
-                <col width="100">
-                <col width="100">
-                <col width="160">
-                <col width="30">
-                <col width="30">
-                <col width="30">
+                <col>
+                <col>
+                <col>
+                <col style="width: 24px">
+                <col style="width: 24px">
+                <col style="width: 24px">
+                <col style="width: 24px">
+                <col style="width: 60px">
              </colgroup>';
 
     }else{
@@ -532,22 +535,19 @@ if( ( isset($class) ) AND ($class != "") ){
             echo overview_header_cell(
                 FRIENDLY_NAME_IPADDRESS,
                 overview_url($list_state, array('order' => $order_value)),
-                overview_sort_direction($order, 'BIN_IP'),
-                ' width=100'
+                overview_sort_direction($order, 'BIN_IP')
             );
             $order_value = ($order ==  "collector ASC") ? 'collector DESC' : 'collector ASC';
             echo overview_header_cell(
                 FRIENDLY_NAME_NAGIOSSERVER,
                 overview_url($list_state, array('order' => $order_value)),
-                overview_sort_direction($order, 'collector'),
-                ' width=100'
+                overview_sort_direction($order, 'collector')
             );
             $order_value = ($order ==  "os ASC") ? 'os DESC' : 'os ASC';
             echo overview_header_cell(
                 FRIENDLY_NAME_OS,
                 overview_url($list_state, array('order' => $order_value)),
-                overview_sort_direction($order, 'os'),
-                ' width=100'
+                overview_sort_direction($order, 'os')
             );
         }
 
@@ -772,4 +772,3 @@ echo '</form>';
 mysqli_close($dbh);
 require_once 'include/foot.php';
 
-?>

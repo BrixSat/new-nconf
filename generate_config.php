@@ -70,7 +70,7 @@ $status = flock($generate_lock_handle, LOCK_EX | LOCK_NB); //lock the file
             modal: true,
             draggable: false,
             resizable: false,
-            height: 161
+            height: 181
         });
 
 

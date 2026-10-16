@@ -418,6 +418,10 @@
     /* The user may type on while a request runs: keep their text, not the server's older copy. */
     function captureFocus(form) {
         var el = document.activeElement;
+        /* a searchable-select control stands in for its hidden <select> (nconf_searchable_select.js) */
+        var wrap = el && el.closest && el.closest('.nsel-wrap');
+        var select = wrap && wrap.querySelector('select');
+        if (select && select.form === form && select.name) { return { name: select.name, select: true }; }
         if (!el || el.form !== form || el.tagName !== 'INPUT' || !el.name) { return null; }
         return { name: el.name, value: el.value, start: el.selectionStart, end: el.selectionEnd };
     }
@@ -425,7 +429,16 @@
     function restoreFocus(form, saved) {
         if (!saved) { return; }
         var el = form.elements.namedItem(saved.name);
-        if (!el || el.tagName !== 'INPUT') { return; }
+        if (!el) { return; }
+        if (saved.select) {
+            /* the widget wraps the new <select> from a MutationObserver, which runs before this timeout */
+            setTimeout(function () {
+                var control = el.parentNode && el.parentNode.querySelector('.nsel-control');
+                (control || el).focus();
+            }, 0);
+            return;
+        }
+        if (el.tagName !== 'INPUT') { return; }
         el.value = saved.value;
         el.focus();
         try { el.setSelectionRange(saved.start, saved.end); } catch (ignore) { /* type without a caret */ }

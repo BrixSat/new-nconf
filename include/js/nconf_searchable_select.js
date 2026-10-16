@@ -161,9 +161,10 @@
             return vis;
         }
 
-        function setHighlight(li) {
+        /* noScroll: the mouse is already on the item; scrolling under it would make the list jump */
+        function setHighlight(li, noScroll) {
             for (var i = 0; i < items.length; i++) { removeClass(items[i], 'nsel-hl'); }
-            if (li) { addClass(li, 'nsel-hl'); scrollIntoViewSafe(li); }
+            if (li) { addClass(li, 'nsel-hl'); if (!noScroll) { scrollIntoViewSafe(li); } }
         }
 
         function filter(q) {
@@ -192,7 +193,8 @@
             filter('');
             var sel = null;
             for (var i = 0; i < items.length; i++) { if (hasClass(items[i], 'nsel-selected')) { sel = items[i]; break; } }
-            if (sel) { scrollIntoViewSafe(sel); }
+            /* arrows continue from the current value, as in a native select, not from the top */
+            if (sel) { setHighlight(sel); }
             search.focus();
         }
 
@@ -219,9 +221,15 @@
         }
 
         control.onclick = function (e) { if (e && e.preventDefault) { e.preventDefault(); } toggle(); };
+        /* closed: Up/Down step the value like a native select; Alt+Down, Enter or Space open the list */
         control.onkeydown = function (e) {
             var k = e.keyCode;
-            if (k === 13 || k === 40 || k === 32) { if (e.preventDefault) { e.preventDefault(); } openPanel(); }
+            if (k === 13 || k === 32 || (k === 40 && e.altKey)) { if (e.preventDefault) { e.preventDefault(); } openPanel(); }
+            else if (k === 38 || k === 40) {
+                if (e.preventDefault) { e.preventDefault(); }
+                var next = select.selectedIndex + (k === 40 ? 1 : -1);
+                if (next >= 0 && next < select.options.length && !isDisabled()) { commit(next); }
+            }
         };
 
         search.oninput = function () { filter(search.value); };
@@ -233,8 +241,18 @@
             var k = e.keyCode;
             if (k === 40) { if (e.preventDefault) { e.preventDefault(); } if (vis.length) { idx = idx < 0 ? 0 : Math.min(idx + 1, vis.length - 1); setHighlight(vis[idx]); } }
             else if (k === 38) { if (e.preventDefault) { e.preventDefault(); } if (vis.length) { idx = idx <= 0 ? 0 : idx - 1; setHighlight(vis[idx]); } }
+            else if (k === 36 || k === 35) { if (e.preventDefault) { e.preventDefault(); } if (vis.length) { setHighlight(vis[k === 36 ? 0 : vis.length - 1]); } }
             else if (k === 13) { if (e.preventDefault) { e.preventDefault(); } if (cur) { commit(parseInt(cur.getAttribute('data-index'), 10)); } }
             else if (k === 27) { if (e.preventDefault) { e.preventDefault(); } closePanel(); control.focus(); }
+            /* Tab moves on: an open list left behind would cover the next field */
+            else if (k === 9) { closePanel(); }
+        };
+
+        /* the mouse moves the same highlight the arrows use, so the two never disagree */
+        list.onmouseover = function (e) {
+            var t = e.target || e.srcElement;
+            while (t && t !== list && !hasClass(t, 'nsel-opt')) { t = t.parentNode; }
+            if (t && hasClass(t, 'nsel-opt') && !hasClass(t, 'nsel-hl')) { setHighlight(t, true); }
         };
 
         list.onclick = function (e) {
